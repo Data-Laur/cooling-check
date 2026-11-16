@@ -78,7 +78,12 @@ td a[data-b],.srow a[data-b]{font-weight:600}
 .b-flag{background:#FDE7C7;color:#8A4B00}.b-ok{background:#D9F2E3;color:#14532D}.b-no{background:#E5E7EF;color:#374151}
 label{font-weight:600} .field{margin:.9rem 0} .hint{color:var(--muted);font-size:.9rem} input[type=text],input[type=number],textarea,select{font:inherit;padding:.4rem .5rem;border:1px solid var(--border);border-radius:6px;max-width:100%}
 .stack{display:none} .srow{border:1px solid var(--border);border-radius:10px;padding:12px 14px;margin-bottom:10px}.srow .l{display:flex;justify-content:space-between;gap:.7rem;padding:.15rem 0}.srow .l span:first-child{color:var(--muted)}
-@media(max-width:720px){header .tagline{display:none}.tw{display:none}.stack{display:block}}
+@media(max-width:720px){header .tagline{display:none}}
+@media(max-width:880px){.tw{display:none}.stack{display:block}
+table.checks thead{display:none}table.checks,table.checks tbody{display:block}
+table.checks tr{display:block;border:1px solid var(--border);border-radius:10px;padding:.4rem .8rem;margin-bottom:.6rem}
+table.checks td{display:flex;justify-content:space-between;gap:1rem;border:0;padding:.25rem 0;text-align:right}
+table.checks td::before{content:attr(data-label);color:var(--muted);font-weight:600;text-align:left}}
 </style></head><body>
 <header><a class="brand" href="/" aria-label="Cooling Check home"><img src="/static/logo.svg" alt=""><span class="wordmark">Cooling Check</span></a>
 <span class="tagline">Is a building using more cooling than the weather explains?</span>
@@ -299,10 +304,10 @@ def results_body(out, heading='Results', buttons=True):
             warns.append(f"Every building at {c['place']} (ZIP {c['zip']}) came back as \"Can't judge\". Common causes: the ZIP code, the time clock, "
                          'or the units are wrong. Go back and check those first.')
     chk_rows = ''.join(
-        f"<tr><td>{E(c['place'])} ({E(c['zip'])})</td><td class='num'>{c['buildings']}</td>"
-        f"<td class='num'>{hour12(c['hottest_hour'])} {'OK' if c['hottest_hour_plausible'] else 'CHECK'}</td>"
-        f"<td class='num'>{'-' if c['median_corr'] != c['median_corr'] else format(c['median_corr'], '.2f')}</td>"
-        f"<td class='num'>{int(c['flagged_hours'].values.sum()) if len(c['flagged_hours']) else 0:,}</td></tr>" for c in checks)
+        f"<tr><td data-label='Location'>{E(c['place'])} ({E(c['zip'])})</td><td class='num' data-label='Buildings'>{c['buildings']}</td>"
+        f"<td class='num' data-label='Hottest hour'>{hour12(c['hottest_hour'])} {'OK' if c['hottest_hour_plausible'] else 'CHECK'}</td>"
+        f"<td class='num' data-label='Cooling vs temp'>{'-' if c['median_corr'] != c['median_corr'] else format(c['median_corr'], '.2f')}</td>"
+        f"<td class='num' data-label='Hours set aside as bad data'>{int(c['flagged_hours'].values.sum()) if len(c['flagged_hours']) else 0:,}</td></tr>" for c in checks)
     n = r['verdict'].value_counts()
     cant = int(n.get("Can't judge", 0))
     summary = (f"{int(n.get('Flagged', 0))} flagged, {int(n.get('Within expected range', 0))} within expected range, "
@@ -339,7 +344,7 @@ def results_body(out, heading='Results', buttons=True):
     return (f"""
 <h1>{E(heading)}</h1><p><strong>{E(summary)}</strong></p>
 <div class="card"><h3>Checks before you trust this</h3>{wtxt}
-<table><thead><tr><th>Location</th><th class="num">Buildings</th><th class="num nw">Hottest hour</th><th class="num">Cooling vs temp</th><th class="num">Hours set aside<br>as bad data</th></tr></thead><tbody>{chk_rows}</tbody></table></div>
+<table class="checks"><thead><tr><th>Location</th><th class="num">Buildings</th><th class="num nw">Hottest hour</th><th class="num">Cooling vs temp</th><th class="num">Hours set aside<br>as bad data</th></tr></thead><tbody>{chk_rows}</tbody></table></div>
 <div class="card"><h3>Buildings</h3>
 {cost_note}<div class="tw"><table><thead><tr>{head}</tr></thead><tbody>{body}</tbody></table></div><div class="stack">{cards}</div>
 <div style="margin-top:.8rem">{notes}</div></div>
