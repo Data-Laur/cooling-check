@@ -283,7 +283,7 @@ def hot_days(building_test, cfg, to_kbtu=1.0):
 def status_as_of(test, as_of, cfg, to_kbtu):
     """Judge each building using only data up to and including the day `as_of`.
     test: SiteResult.test (judged buildings, with columns building_id, timestamp, above, excess_kbtu).
-    Returns one row per building: 'Flagged, ongoing' | 'Was flagged, back to normal' | 'Within expected range'.
+    Returns one row per building: 'Flagged, ongoing' | 'Was flagged, not above band lately' | 'Within expected range'.
     An episode = the rolling share above the band stays over the flag line for min_episode_days days in a row."""
     end = pd.Timestamp(as_of).normalize() + pd.Timedelta(days=1)
     rows = []
@@ -302,7 +302,7 @@ def status_as_of(test, as_of, cfg, to_kbtu):
             if runs[-1][1] == last_day and hot.iloc[-1]:
                 row['status'] = 'Flagged, ongoing'
             else:
-                row['status'] = 'Was flagged, back to normal'
+                row['status'] = 'Was flagged, not above band lately'
                 row['back_to_normal_since'] = (runs[-1][1] + pd.Timedelta(days=1)).date()
         rows.append(row)
     cols = ['building_id', 'status', 'first_flagged', 'back_to_normal_since', 'excess ton-hours']

@@ -60,18 +60,18 @@ label{font-weight:600} .field{margin:.9rem 0} .hint{color:var(--muted);font-size
 </style></head><body>
 <header><a class="brand" href="/" aria-label="Cooling Check home"><img src="/static/logo.svg" alt=""><span class="wordmark">Cooling Check</span></a>
 <span class="tagline">Is a building using more cooling than the weather explains?</span>
-<nav aria-label="Main"><a href="/" {c}>Check your data</a><a href="/trust" {t}>How far to trust it</a><a href="/limits" {l}>What we can't see</a></nav></header><main>"""
+<nav aria-label="Main"><a href="/" {e}>Example</a><a href="/upload" {c}>Check your data</a><a href="/trust" {t}>How far to trust it</a><a href="/limits" {l}>What we can't see</a></nav></header><main>"""
 FOOT = "</main></body></html>"
 
 
 def page(body, active=''):
-    h = HEAD.replace('{c}', 'aria-current="page"' if active == 'check' else '') \
+    h = HEAD.replace('{e}', 'aria-current="page"' if active == 'example' else '').replace('{c}', 'aria-current="page"' if active == 'check' else '') \
             .replace('{t}', 'aria-current="page"' if active == 'trust' else '') \
             .replace('{l}', 'aria-current="page"' if active == 'limits' else '')
     return h + body + FOOT
 
 
-def home():
+def upload_page():
     return page("""
 <h1>Check your building's cooling</h1>
 <p>Upload hourly chilled-water readings. Cooling Check compares each hour with what the <strong>weather</strong> says the building should use,
@@ -97,7 +97,7 @@ and tells you which buildings are using more than expected, or that it can't jud
 
 
 def error(msg):
-    return page(f'<h1>We stopped</h1><div class="warn">{E(msg)}</div><p><a class="btn" href="/">Try another file</a></p>', 'check')
+    return page(f'<h1>We stopped</h1><div class="warn">{E(msg)}</div><p><a class="btn" href="/upload">Try another file</a></p>', 'check')
 
 
 with open(os.path.join(os.path.dirname(os.path.abspath(__file__)), 'data', 'state_prices.json')) as _f:
@@ -105,7 +105,10 @@ with open(os.path.join(os.path.dirname(os.path.abspath(__file__)), 'data', 'stat
 PRICE_NOTE = "a statewide average, not your utility's rate"
 
 
-def verify(token, info, long, loads, form_error=''):
+def verify(token, info, long, loads, form_error='', defaults=None):
+    defaults = defaults or {}
+    zip_val = E(defaults.get('zip', ''))
+    clock_std = defaults.get('clock') == 'standard'
     cols = info['columns']
     if info['format'] == 'long':
         found = (f"one row per reading: time = <code>{E(str(cols['time']))}</code>, building = <code>{E(str(cols['building']))}</code>, "
@@ -129,7 +132,7 @@ def verify(token, info, long, loads, form_error=''):
     if info['has_zip']:
         zip_opts += '<label><input type="radio" name="zip_mode" value="column" checked> Use the ZIP column in my file</label><br>'
     zip_opts += (f'<label><input type="radio" name="zip_mode" value="one" {"" if info["has_zip"] else "checked"}> All buildings are in one place</label>'
-                 ' &nbsp; ZIP <input type="text" name="zip" size="6" maxlength="5" inputmode="numeric" placeholder="02110"><br>'
+                 f' &nbsp; ZIP <input type="text" name="zip" size="6" maxlength="5" inputmode="numeric" placeholder="02110" value="{zip_val}"><br>'
                  '<label><input type="radio" name="zip_mode" value="table"> Buildings are in different places</label>')
     names = ', '.join(E(dn(b)) for b in info['buildings'][:12]) + ('...' if len(info['buildings']) > 12 else '')
     err = f'<div class="warn">{E(form_error)}</div>' if form_error else ''
@@ -150,8 +153,8 @@ A typical large building averages from tens to a few hundred tons; a campus buil
 <textarea id="m" name="mapping" rows="5" cols="44" placeholder="{E(dn(info['buildings'][0]))}, 02110"></textarea>
 <div class="hint">Building names in your file: {names}</div></div></div>
 <div class="card"><h3>3. Time clock</h3><div class="field">
-<label><input type="radio" name="clock" value="local" checked> Local clock time at each building (changes with daylight saving)</label><br>
-<label><input type="radio" name="clock" value="standard"> Local standard time all year (no daylight saving change)</label><br>
+<label><input type="radio" name="clock" value="local" {'' if clock_std else 'checked'}> Local clock time at each building (changes with daylight saving)</label><br>
+<label><input type="radio" name="clock" value="standard" {'checked' if clock_std else ''}> Local standard time all year (no daylight saving change)</label><br>
 <label><input type="radio" name="clock" value="utc"> UTC</label></div>
 <p class="hint">After scoring we show the hottest hour of the day. If it isn't mid-afternoon, the clock is probably wrong.</p></div>
 <div class="card"><h3>4. Do the chillers shut off in winter?</h3><div class="field">
@@ -216,6 +219,10 @@ def _hints(r):
 
 
 def results(out):
+    return page(results_body(out), 'check')
+
+
+def results_body(out, heading='Results', buttons=True):
     price = out['price_mode'] != 'none'
     r, checks = out['results'], out['checks']
     warns = []
@@ -267,8 +274,8 @@ def results(out):
         cost_note = ''
     hints_html = _hints(r)
     wtxt = ''.join(f'<div class="warn">{E(w)}</div>' for w in warns) or '<div class="ok">Clock, weather and weather-following checks passed for every location.</div>'
-    return page(f"""
-<h1>Results</h1><p><strong>{E(summary)}</strong></p>
+    return (f"""
+<h1>{E(heading)}</h1><p><strong>{E(summary)}</strong></p>
 <div class="card"><h3>Checks before you trust this</h3>{wtxt}
 <table><thead><tr><th>Location</th><th class="num">Buildings</th><th class="num nw">Hottest hour</th><th class="num">Cooling vs temperature</th><th class="num">Hours set aside<br>as bad data</th></tr></thead><tbody>{chk_rows}</tbody></table></div>
 <div class="card"><h3>Buildings</h3>
@@ -277,11 +284,11 @@ def results(out):
 {hints_html}
 <div class="card"><h3>How to read this</h3><ul>
 <li><strong>Flagged</strong>: more than 10% of the hours in the test period (about the last five months) were above the 90% band <em>and</em> the excess is at least 5% of the building's cooling. Excess is only the part above the band's upper edge, so it is conservative.</li>
-<li><strong>Status on {E(us_date(out['last_day']))}</strong> looks at the most recent weeks only: "Flagged, ongoing", "Was flagged, back to normal", or "Within expected range".</li>
+<li><strong>Status on {E(us_date(out['last_day']))}</strong> looks at the most recent weeks only: "Flagged, ongoing", "Was flagged, not above band lately", or "Within expected range".</li>
 <li><strong>Can't judge</strong> means the model wasn't accurate enough on this building (or there wasn't enough clean data), so we don't guess.</li>
 <li>Excess cooling is <strong>potential</strong>, not realized: a meter change or a legitimate change in use looks the same. Check the meter first.</li></ul>
 <p class="hint">Test period {E(us_date(out['test_start']))} onward; the month before was used to calibrate the band; earlier data to fit the baseline.</p></div>
-<p><a class="btn" href="/">Check another file</a> <a class="btn-outline" href="/trust">How far to trust it</a></p>""", 'check')
+""" + ('<p><a class="btn" href="/upload">Check another file</a> <a class="btn-outline" href="/trust">How far to trust it</a></p>' if buttons else ''))
 
 
 def trust():
@@ -290,7 +297,7 @@ def trust():
 <p>There are no confirmed real faults in public cooling data, so the method was tested by <strong>planting faults</strong>: multiplying a building's readings by 1.10, 1.25 or 1.50 from a chosen date, then scoring it on month-end dates using only data up to that date.</p>
 <div class="card"><table><thead><tr><th>Planted fault</th><th class="num">Flagged while running, 2016</th><th class="num">Same, 2017 (never tuned on)</th></tr></thead><tbody>
 <tr><td>+50%</td><td class="num">57%</td><td class="num">53%</td></tr><tr><td>+25%</td><td class="num">27%</td><td class="num">23%</td></tr><tr><td>+10%</td><td class="num">6%</td><td class="num">7%</td></tr></tbody></table>
-<p class="hint">16 judged buildings in 2016, 19 in 2017, from four university campuses. After a planted fix, about 54 to 62% of the time the tool said "was flagged, back to normal".</p></div>
+<p class="hint">16 judged buildings in 2016, 19 in 2017, from four university campuses. After a planted fix, about 54 to 62% of the time the tool said "was flagged, not above band lately". That label also appears for faults that never ended, so it does not confirm a fix.</p></div>
 <div class="card"><h3>What this does and doesn't show</h3><ul>
 <li>It catches big, long faults and misses small or late ones, especially in the cool season: the 90% band is a fixed width, so a +25% fault is about 1.1 times the band in August and 0.3 times in December.</li>
 <li><strong>"Where to look first" hints:</strong> tested with faults planted at known dates and times. The start date was within a week of the truth about 60% of the time (median error 0 to 2 days). The pattern (nights and weekends, weekday daytime, or all day) was named correctly about 80 to 98% of the time. The tool cannot tell a faulty valve from a changed setpoint or a meter change, and when a fault ends it often cannot say so reliably.</li>
@@ -311,3 +318,26 @@ def limits():
 <li><strong>Dollars and carbon.</strong> Dollars use a statewide average price unless you give your own rate, and a plant COP you can change (default 3.5). Carbon is not estimated.</li>
 <li><strong>Anything outside US ZIP codes</strong>, or data that isn't hourly.</li></ul>
 <p>This is a portfolio project, not a production system.</p></div>""", 'limits')
+
+
+import os as _os
+DEMO_PATH = _os.path.join(_os.path.dirname(_os.path.abspath(__file__)), 'static', 'demo_result.html')
+
+
+def home():
+    """Landing page: a saved result on real data first, then the invitation to try your own."""
+    if not _os.path.exists(DEMO_PATH):
+        return upload_page()
+    with open(DEMO_PATH) as f:
+        demo = f.read()
+    return page(f"""
+<h1>Is a building using more cooling than the weather explains?</h1>
+<p>Cooling Check compares each hour's chilled-water use with what the weather says the building should use, and tells you which buildings to look at first, or that it can't judge. Below is a real example. <strong>Then check your own data.</strong></p>
+<p><a class="btn" href="/upload">Check your own data</a> <a class="btn-outline" href="/demo">Run this example live</a></p>
+<div class="card"><p class="hint"><strong>Real data, saved result.</strong> Hourly chilled-water meters for 7 university buildings in Orlando, Florida, 2016
+(Building Data Genome 2, Miller et al. 2020, CC BY 4.0; subset). Buildings are anonymized. Weather is looked up for ZIP 32816. This page was generated ahead of time from the
+sample file, so it loads instantly; "Run this example live" runs the same file through the app now.</p></div>
+{demo}
+<div class="card"><h3>How to read the "Status" column here</h3><p>The two flagged residence halls were well above their band over the whole test period. "Not above band lately" means the most recent weeks were not clearly above it. It does <strong>not</strong> confirm a fix: in the cool months the band is wide compared with the load, so a fixed amount of extra cooling can hide inside it (see <a href="/trust">how far to trust it</a>).</p></div>
+<div class="card"><h3>What this example doesn't show</h3><p>Real files are messier. Try <a href="/samples/sample_D_real_princeton_kwh.csv">sample D</a> (Princeton, NJ, with long winter shutdowns) on the
+<a href="/upload">upload page</a>: most buildings come back as "Can't judge", which is the tool being honest. See <a href="/trust">how far to trust it</a>.</p></div>""", 'example')

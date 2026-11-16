@@ -43,6 +43,25 @@ def home():
     return HTMLResponse(pages.home())
 
 
+@app.get('/upload', response_class=HTMLResponse)
+def upload_form():
+    return HTMLResponse(pages.upload_page())
+
+
+@app.get('/demo', response_class=HTMLResponse)
+def demo():
+    """Send the real Orlando sample through the live app, with its settings filled in."""
+    _sweep()
+    tmp = tempfile.mkdtemp(prefix='coolingcheck_')
+    path = os.path.join(tmp, 'upload.csv')
+    shutil.copy(os.path.join(SAMPLES, 'sample_C_real_orlando_kwh.csv'), path)
+    long, info = read_upload(path)
+    token = secrets.token_urlsafe(16)
+    UPLOADS[token] = {'dir': tmp, 'path': path, 'made': time.time()}
+    loads = {u: service.typical_load(long, u) for u in ('kwh', 'kbtu', 'ton_hours')}
+    return HTMLResponse(pages.verify(token, info, long, loads, defaults={'zip': '32816', 'clock': 'standard'}))
+
+
 @app.get('/trust', response_class=HTMLResponse)
 def trust():
     return HTMLResponse(pages.trust())

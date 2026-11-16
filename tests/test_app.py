@@ -25,8 +25,12 @@ def text(html):
     return re.sub(r'\s+', ' ', re.sub(r'<[^>]+>', ' ', html))
 
 
-for p in ('/', '/trust', '/limits', '/healthz'):
+for p in ('/', '/upload', '/trust', '/limits', '/healthz'):
     assert c.get(p).status_code == 200
+h = text(c.get('/').text)
+assert 'Example result' in h and 'Panther lodging Cora' in h and 'Check your own data' in h
+d = c.get('/demo').text
+assert 'value="32816"' in d and 'name="clock" value="standard" checked' in d
 
 # Sample A: long, kWh, one ZIP. Expect Science_Hall flagged (planted +40% from Sep 1).
 html, tok = upload('sample_A_long_kwh.csv')
