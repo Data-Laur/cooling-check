@@ -6,6 +6,8 @@ In other words: **weather-normalized anomaly detection for building cooling.** C
 
 It was built for **facility operators**: people who need a short, trustworthy list of buildings to look at, not a dashboard of raw meter readings.
 
+**Live app: https://cooling-check.onrender.com/** (upload your own hourly cooling data, or run the real example).
+
 It is a portfolio project, not a production system.
 
 ## Why weather-normalize?
