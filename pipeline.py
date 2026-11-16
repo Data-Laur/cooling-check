@@ -14,6 +14,8 @@ KBTU_PER_TON_HOUR = 12.0
 UNIT_TO_KBTU = {'kbtu': 1.0, 'kwh': KBTU_PER_KWH, 'ton_hours': KBTU_PER_TON_HOUR}
 RESIDUAL_FEATURES = ['hour', 'day_of_week', 'dew_temperature']
 COP_SENSITIVITY = (2.5, 3.5, 5.0)
+IMPACT_COLUMNS = ['building_id', 'use', 'calib CV(RMSE) %', 'hours above band %', 'verdict', 'note',
+                  'excess ton-hours', 'excess % of cooling', 'electricity kWh', 'cost $', 'CO2 tonnes']
 
 
 @dataclass
@@ -200,7 +202,8 @@ def run_site(meters, weather, cfg, metadata=None):
             else:
                 row['verdict'] = 'Within expected range'
         rows.append(row)
-    impact = pd.DataFrame(rows).set_index('building_id').sort_values('cost $', ascending=False, na_position='last')
+    impact = pd.DataFrame(rows, columns=IMPACT_COLUMNS).set_index('building_id')
+    impact = impact.sort_values('cost $', ascending=False, na_position='last')
 
     flagged = tp[tp['building_id'].isin(impact.index[impact['verdict'] == 'Flagged'])]
     total_kbtu = flagged['excess_kbtu'].sum()
