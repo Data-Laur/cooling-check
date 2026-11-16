@@ -30,6 +30,7 @@ class Config:
     trust_cv_rmse_max: float = 30.0   # ASHRAE Guideline 14 hourly accuracy bar
     flag_above_pct: float = 10.0      # our choice: 2x the ~5% of hours expected above a 90% band
     min_hours: int = 168              # need a week of clean data in each period to judge a building
+    min_excess_pct: float = 0.0       # as-of scoring: window must also have excess above the band of at least this % of its cooling
     window_days: int = 7              # as-of scoring: rolling window for "share of hours above the band"
     min_episode_days: int = 3         # as-of scoring: window share must stay above flag_above_pct this many days in a row
     plant_cop: float = 3.5            # assumption: whole chilled-water plant
@@ -235,14 +236,21 @@ def run_site(meters, weather, cfg, metadata=None):
     return SiteResult(impact, totals, pd.DataFrame(sens), checks, tp, halfwidth)
 
 
-def hot_days(building_test, cfg):
+def hot_days(building_test, cfg, to_kbtu=1.0):
     """Per day: share of the last window_days of hours above the band, and whether it is past the flag line.
-    building_test needs columns timestamp, above. Windows with under half their hours are left blank."""
-    daily = building_test.set_index('timestamp')['above'].astype(float).resample('D').agg(['sum', 'count'])
-    n = daily['count'].rolling(cfg.window_days, min_periods=1).sum()
-    a = daily['sum'].rolling(cfg.window_days, min_periods=1).sum()
-    share = (100 * a / n).where(n >= 12 * cfg.window_days)
-    return share, (share > cfg.flag_above_pct)
+    Past the flag line = share above the band > flag_above_pct AND (if min_excess_pct > 0) the excess above the
+    band's upper edge is at least min_excess_pct of the window's cooling. Windows with under half their hours
+    are left blank. building_test needs columns timestamp, above, meter_reading, excess_kbtu."""
+    t = building_test.set_index('timestamp')
+    daily = pd.DataFrame({'above': t['above'].astype(float).resample('D').sum(),
+                          'n': t['above'].resample('D').count(),
+                          'excess': t['excess_kbtu'].resample('D').sum(),
+                          'cooling': (t['meter_reading'] * to_kbtu).resample('D').sum()})
+    r = daily.rolling(cfg.window_days, min_periods=1).sum()
+    share = (100 * r['above'] / r['n']).where(r['n'] >= 12 * cfg.window_days)
+    excess_pct = 100 * r['excess'] / r['cooling'].where(r['cooling'] > 0)
+    hot = (share > cfg.flag_above_pct) & (excess_pct >= cfg.min_excess_pct)
+    return share, hot
 
 
 def status_as_of(test, as_of, cfg, to_kbtu):
@@ -253,7 +261,7 @@ def status_as_of(test, as_of, cfg, to_kbtu):
     end = pd.Timestamp(as_of).normalize() + pd.Timedelta(days=1)
     rows = []
     for b, g in test[test['timestamp'] < end].groupby('building_id'):
-        _, hot = hot_days(g, cfg)
+        _, hot = hot_days(g, cfg, to_kbtu)
         run_id = (hot != hot.shift()).cumsum()
         runs = [(grp.index[0], grp.index[-1], len(grp)) for _, grp in hot[hot].groupby(run_id[hot])]
         runs = [r for r in runs if r[2] >= cfg.min_episode_days]
