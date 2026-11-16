@@ -52,7 +52,8 @@ header .tagline{color:#B8C0E0;font-size:16pt;margin-left:.5rem;padding-left:.5re
 header nav{display:flex;gap:.25rem;margin-left:auto;flex-wrap:wrap}
 header nav a{color:#DCE1F5;text-decoration:none;font-weight:600;padding:.4rem .7rem;border-radius:8px}
 header nav a:hover{background:rgba(255,255,255,.1);color:#fff} header nav a[aria-current="page"]{background:#0E7490;color:#fff}
-main{max-width:960px;margin:0 auto;padding:1.5rem} a{color:var(--cyan-text)} h1,h2,h3{color:var(--ink)}
+main{max-width:960px;margin:0 auto;padding:1.5rem}
+footer{max-width:960px;margin:0 auto;padding:1rem 1.5rem 2rem;color:var(--muted);font-size:.9rem;border-top:1px solid var(--border)}footer p{margin:.2rem 0} a{color:var(--cyan-text)} h1,h2,h3{color:var(--ink)}
 .card{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:20px;margin-bottom:1rem}
 .btn{display:inline-block;background:#0E7490;color:#fff;border:none;border-radius:8px;padding:.55rem 1rem;font:inherit;font-weight:600;cursor:pointer;text-decoration:none}
 .btn:hover{background:#0c6479} .btn-outline{display:inline-block;background:#fff;color:var(--cyan-text);border:1px solid var(--cyan);border-radius:8px;padding:.5rem .9rem;font-weight:600;text-decoration:none;margin:0 .4rem .4rem 0}
@@ -74,7 +75,8 @@ label{font-weight:600} .field{margin:.9rem 0} .hint{color:var(--muted);font-size
 <header><a class="brand" href="/" aria-label="Cooling Check home"><img src="/static/logo.svg" alt=""><span class="wordmark">Cooling Check</span></a>
 <span class="tagline">Is a building using more cooling than the weather explains?</span>
 <nav aria-label="Main"><a href="/" {e}>Example</a><a href="/upload" {c}>Check your data</a><a href="/trust" {t}>How far to trust it</a><a href="/limits" {l}>What we can't see</a></nav></header><main>"""
-FOOT = "</main></body></html>"
+FOOT = """</main><footer><p>Built by <strong>Lauren Chagaris</strong> &middot; <a href="https://data-laur.github.io">Portfolio</a> &middot; <a href="https://github.com/Data-Laur/cooling-check">GitHub</a></p>
+<p>Portfolio project, not a production system. Data: Building Data Genome 2 (Miller et al., 2020).</p></footer></body></html>"""
 
 
 def page(body, active=''):
