@@ -82,15 +82,14 @@ label{font-weight:600} .field{margin:.9rem 0} .hint{color:var(--muted);font-size
 </style></head><body>
 <header><a class="brand" href="/" aria-label="Cooling Check home"><img src="/static/logo.svg" alt=""><span class="wordmark">Cooling Check</span></a>
 <span class="tagline">Is a building using more cooling than the weather explains?</span>
-<nav aria-label="Main"><a href="/" {e}>Example</a><a href="/upload" {c}>Check your data</a><a href="/trust" {t}>How far to trust it</a><a href="/limits" {l}>What we can't see</a></nav></header><main>"""
+<nav aria-label="Main"><a href="/" {e}>Priorities</a><a href="/upload" {c}>Check your data</a><a href="/method" {m}>Method</a></nav></header><main>"""
 FOOT = """</main><footer><p>Built by <strong>Lauren Chagaris</strong> &middot; <a href="https://data-laur.github.io">Portfolio</a> &middot; <a href="https://github.com/Data-Laur/cooling-check">GitHub</a></p>
 <p>Portfolio project, not a production system. Data: Building Data Genome 2 (Miller et al., 2020).</p></footer></body></html>"""
 
 
 def page(body, active=''):
     h = HEAD.replace('{e}', 'aria-current="page"' if active == 'example' else '').replace('{c}', 'aria-current="page"' if active == 'check' else '') \
-            .replace('{t}', 'aria-current="page"' if active == 'trust' else '') \
-            .replace('{l}', 'aria-current="page"' if active == 'limits' else '')
+            .replace('{m}', 'aria-current="page"' if active == 'method' else '')
     return h + body + FOOT
 
 
@@ -117,7 +116,7 @@ and tells you which buildings are using more than expected, or that it can't jud
 <p class="hint">Samples C and D are a subset of data from Miller et al. (2020), <em>Scientific Data</em> 7:368 (<a href="https://doi.org/10.1038/s41597-020-00712-x">doi:10.1038/s41597-020-00712-x</a>).
 The authors' Zenodo release is licensed <a href="https://creativecommons.org/licenses/by/4.0/">CC BY 4.0</a> and their GitHub repository carries <a href="https://creativecommons.org/licenses/by-sa/4.0/">CC BY-SA 4.0</a>, so this subset is shared under CC BY-SA 4.0, which satisfies both.
 Changes: 2016 only, 7 buildings per site, reformatted to CSV.</p></div>
-<p class="hint">Portfolio project, not a production system. See <a href="/trust">how far to trust it</a> and <a href="/limits">what it can't see</a>.</p>""", 'check')
+<p class="hint">Portfolio project, not a production system. See <a href="/method#trust">how far to trust it</a> and <a href="/method#limits">what it can't see</a>.</p>""", 'check')
 
 
 def error(msg):
@@ -273,7 +272,7 @@ def _hints(r):
         return ''
     return ('<div class="card"><h3>Where to look first</h3><p class="hint">Hints from when and how the extra cooling shows up, '
             '<strong>not a diagnosis</strong>. In planted-fault tests the start date landed within a week about 60% of the time, and the '
-            'timing pattern was named correctly 80 to 98% of the time. See <a href="/trust">how far to trust it</a>.</p>' + items + '</div>')
+            'timing pattern was named correctly 80 to 98% of the time. See <a href="/method#trust">how far to trust it</a>.</p>' + items + '</div>')
 
 
 def results(out):
@@ -350,38 +349,64 @@ def results_body(out, heading='Results', buttons=True):
 <li><strong>Can't judge</strong> means the model wasn't accurate enough on this building (or there wasn't enough clean data), so we don't guess.</li>
 <li>Excess cooling is <strong>potential</strong>, not realized: a meter change or a legitimate change in use looks the same. Check the meter first.</li></ul>
 <p class="hint">Test period {E(us_date(out['test_start']))} onward; the month before was used to calibrate the band; earlier data to fit the baseline.</p></div>
-""" + ('<p><a class="btn" href="/upload">Check another file</a> <a class="btn-outline" href="/trust">How far to trust it</a></p>' if buttons else '')
+""" + ('<p><a class="btn" href="/upload">Check another file</a> <a class="btn-outline" href="/method#trust">How far to trust it</a></p>' if buttons else '')
             + f'<div id="detail-view"></div><script src="https://cdn.plot.ly/plotly-2.35.2.min.js" charset="utf-8"></script>'
               f'<script>window.DETAIL = {detail};</script><script src="/static/detail.js"></script>')
 
 
-def trust():
+def method():
     return page("""
-<h1>How far to trust it</h1>
+<h1>Method</h1>
+<p>Cooling Check asks one question of each building: <strong>is it using more cooling than the weather explains?</strong> Everything below is how it answers, how far to trust the answer, and what it cannot see.
+Jump to: <a href="#how">How it works</a> &middot; <a href="#terms">Terms</a> &middot; <a href="#trust">How far to trust it</a> &middot; <a href="#limits">What we can't see</a> &middot; <a href="#data">Data and credits</a></p>
+
+<div class="card" id="how"><h2>How it works</h2><ol>
+<li><strong>Clean, but flag instead of delete.</strong> Long runs of zero (over 24 hours, unless you say your chillers shut off) and meters stuck far below normal are set aside and counted, never silently removed.</li>
+<li><strong>Weather features.</strong> From outdoor temperature and dew point we compute the wet-bulb temperature, which captures heat and humidity together. Cooling towers and chillers respond to wet-bulb more than to plain air temperature.</li>
+<li><strong>Physics baseline.</strong> For each building, a change-point model: cooling is flat below a wet-bulb balance point and rises in a straight line above it (an ASHRAE Guideline 14 style model).</li>
+<li><strong>Machine learning on the gap.</strong> Gradient boosting learns what the baseline misses (hour of day, day of week, humidity). Expected cooling = baseline + that correction.</li>
+<li><strong>A 90% band.</strong> Split conformal prediction, calibrated on the month before the test period, gives a range the building should stay inside about 90% of the time.</li>
+<li><strong>A trust gate.</strong> If the model's error on the calibration month is worse than 30% (CV(RMSE), the ASHRAE bar for hourly models), the building is "Can't judge". We would rather say so than guess.</li>
+<li><strong>The verdict.</strong> "Flagged" needs both more than 10% of hours above the band and extra cooling of at least 5% of the building's cooling. Excess counts only the part above the band's upper edge, so it is conservative.</li>
+<li><strong>Status as of a date.</strong> Using only the latest weeks: "Flagged, ongoing", "Was flagged, not above band lately", or "Within expected range". The last one does not confirm a fix.</li>
+<li><strong>Where to look first.</strong> For flagged buildings: when the extra began, and whether it falls mostly on nights and weekends or on weekday daytime. A hint, not a diagnosis.</li></ol>
+<p>Fit uses the earlier data, the band is calibrated on the month before the test period, and the test period is about the last five months. The model never learns from the test period. One small exception: the bad-data cleaning rules, such as the stuck-meter check, look slightly ahead in time.</p></div>
+
+<div class="card" id="terms"><h2>Terms</h2><ul>
+<li><strong>Ton:</strong> a standard unit of cooling rate, 12,000 BTU per hour. A ton-hour is one ton for one hour.</li>
+<li><strong>Wet-bulb temperature:</strong> the temperature a wet thermometer reads; it rises with both heat and humidity.</li>
+<li><strong>90% band:</strong> the range expected to hold about 9 of every 10 hours for a normally behaving building.</li>
+<li><strong>CV(RMSE):</strong> the model's typical hourly error as a percent of average use. Lower is better; over 30% means "Can't judge".</li>
+<li><strong>COP:</strong> units of cooling the whole plant makes per unit of electricity (default 3.5). It turns excess cooling into electricity and dollars.</li></ul></div>
+
+<div class="card" id="trust"><h2>How far to trust it</h2>
 <p>There are no confirmed real faults in public cooling data, so the method was tested by <strong>planting faults</strong>: multiplying a building's readings by 1.10, 1.25 or 1.50 from a chosen date, then scoring it on month-end dates using only data up to that date.</p>
-<div class="card"><table><thead><tr><th>Planted fault</th><th class="num">Flagged while running, 2016</th><th class="num">Same, 2017 (never tuned on)</th></tr></thead><tbody>
+<table><thead><tr><th>Planted fault</th><th class="num">Flagged while running, 2016</th><th class="num">Same, 2017 (never tuned on)</th></tr></thead><tbody>
 <tr><td>+50%</td><td class="num">57%</td><td class="num">53%</td></tr><tr><td>+25%</td><td class="num">27%</td><td class="num">23%</td></tr><tr><td>+10%</td><td class="num">6%</td><td class="num">7%</td></tr></tbody></table>
-<p class="hint">16 judged buildings in 2016, 19 in 2017, from four university campuses. After a planted fix, about 54 to 62% of the time the tool said "was flagged, not above band lately". That label also appears for faults that never ended, so it does not confirm a fix.</p></div>
-<div class="card"><h3>What this does and doesn't show</h3><ul>
-<li>It catches big, long faults and misses small or late ones, especially in the cool season: the 90% band is a fixed width, so a +25% fault is about 1.1 times the band in August and 0.3 times in December.</li>
-<li><strong>"Where to look first" hints:</strong> tested with faults planted at known dates and times. The start date was within a week of the truth about 60% of the time (median error 0 to 2 days). The pattern (nights and weekends, weekday daytime, or all day) was named correctly about 80 to 98% of the time. The tool cannot tell a faulty valve from a changed setpoint or a meter change, and when a fault ends it often cannot say so reliably.</li>
+<p class="hint">16 judged buildings in 2016, 19 in 2017, from four university campuses.</p>
+<ul>
+<li>It catches big, long faults and misses small or late ones, especially in the cool season: the 90% band is a fixed width, so a +25% fault is about 1.1 times the band in August and 0.3 times in December. A band that scaled with load was no better at the same alert level, so we kept the fixed band.</li>
+<li>After a planted fix, about 54 to 62% of the time the tool said "was flagged, not above band lately". That label also appears for faults that never ended, so it does not confirm a fix.</li>
+<li><strong>Where-to-look-first hints:</strong> the start date was within a week of the truth about 60% of the time (median error 0 to 2 days), and the timing pattern was named correctly 80 to 98% of the time, in 2016 and in 2017. Whether a fault is still going or has ended was not reliable, so the hints do not claim it.</li>
 <li>With the 5% materiality floor, about a quarter of unmodified buildings still showed an alert episode. With no labels we can't say how many are false alarms.</li>
-<li>A planted fault is a steady percentage increase, not a real fault. Thresholds were tuned on 2016 after seeing results.</li>
-<li>On four sites, 2 to 6 of 7 buildings could be judged; the rest are marked "Can't judge" instead of guessed.</li></ul>
-<p>Full details, code and tests: the <a href="https://github.com/Data-Laur/cooling-check">GitHub repo</a>.</p></div>""", 'trust')
+<li>On four sites, 2 to 6 of 7 buildings could be judged; the rest are "Can't judge" instead of guessed.</li>
+<li>A planted fault is a steady percentage increase, not a real fault. Some thresholds were tuned on 2016 after seeing results, and the write-up says which.</li></ul>
+<p>Code, tests and full numbers: the <a href="https://github.com/Data-Laur/cooling-check">GitHub repo</a>.</p></div>
 
-
-def limits():
-    return page("""
-<h1>What we can't see</h1><div class="card"><ul>
+<div class="card" id="limits"><h2>What we can't see</h2><ul>
 <li><strong>Why</strong> a building uses extra cooling. A leak, a stuck valve, a changed setpoint, a new tenant and a meter change can all look the same. The tool says something changed and when.</li>
 <li><strong>Your location, unless you tell us.</strong> We trust the ZIP code you give. A wrong ZIP often ends as "Can't judge", but not always.</li>
 <li><strong>Cold-climate shutdowns, unless you tell us.</strong> Long runs of zero are treated as bad data by default.</li>
 <li><strong>Calendars and occupancy.</strong> A semester break or a new use can look like a fault.</li>
 <li><strong>Small faults in the cool season.</strong> The band is a fixed width calibrated on a single month.</li>
 <li><strong>Dollars and carbon.</strong> Dollars use a statewide average price unless you give your own rate, and a plant COP you can change (default 3.5). Carbon is not estimated.</li>
-<li><strong>Anything outside US ZIP codes</strong>, or data that isn't hourly.</li></ul>
-<p>This is a portfolio project, not a production system.</p></div>""", 'limits')
+<li><strong>Anything outside US ZIP codes</strong>, or data that isn't hourly.</li></ul></div>
+
+<div class="card" id="data"><h2>Data and credits</h2><ul>
+<li><strong>Real examples:</strong> Building Data Genome 2, Miller et al. (2020), <em>Scientific Data</em> 7:368, <a href="https://doi.org/10.1038/s41597-020-00712-x">doi:10.1038/s41597-020-00712-x</a>. The Zenodo release is CC BY 4.0 and the GitHub repository carries CC BY-SA 4.0, so the sample subsets here are shared under CC BY-SA 4.0 with attribution; changes: 2016 only, 7 buildings per site, CSV.</li>
+<li><strong>Weather:</strong> Open-Meteo historical archive; ZIP codes to coordinates by zippopotam.us.</li>
+<li><strong>Electricity prices:</strong> U.S. EIA Electric Power Monthly, Table 5.6.A, average commercial price by state (""" + PRICE_PERIOD + """).</li></ul>
+<p>Built by Lauren Chagaris as a portfolio project, not a production system.</p></div>""", 'method')
 
 
 import os as _os
@@ -395,12 +420,12 @@ def home():
     with open(DEMO_PATH) as f:
         demo = f.read()
     return page(f"""
-<p>Cooling Check compares each hour's chilled-water use with what the weather says the building should use, and tells you which buildings to look at first, or that it can't judge. Below is a real example. <strong>Then check your own data.</strong></p>
+<p>Cooling Check compares each hour's chilled-water use with what the weather says the building should use, and tells you which buildings to look at first, or that it can't judge. Below is a real example, ranked with the buildings to look at first at the top. <strong>Click a building to see it week by week,</strong> then check your own data.</p>
 <p><a class="btn" href="/upload">Check your own data</a> <a class="btn-outline" href="/demo">Run this example live</a></p>
 <div class="card"><p class="hint"><strong>Real data, saved result.</strong> Hourly chilled-water meters for 7 university buildings in Orlando, Florida, 2016
 (Building Data Genome 2, Miller et al. 2020, CC BY 4.0; subset). Buildings are anonymized. Weather is looked up for ZIP 32816. This page was generated ahead of time from the
 sample file, so it loads instantly; "Run this example live" runs the same file through the app now.</p></div>
 {demo}
-<div class="card"><h3>How to read the "Status" column here</h3><p>The two flagged residence halls were well above their band over the whole test period. "Not above band lately" means the most recent weeks were not clearly above it. It does <strong>not</strong> confirm a fix: in the cool months the band is wide compared with the load, so a fixed amount of extra cooling can hide inside it (see <a href="/trust">how far to trust it</a>).</p></div>
+<div class="card"><h3>How to read the "Status" column here</h3><p>The two flagged residence halls were well above their band over the whole test period. "Not above band lately" means the most recent weeks were not clearly above it. It does <strong>not</strong> confirm a fix: in the cool months the band is wide compared with the load, so a fixed amount of extra cooling can hide inside it (see <a href="/method#trust">how far to trust it</a>).</p></div>
 <div class="card"><h3>What this example doesn't show</h3><p>Real files are messier. Try <a href="/samples/sample_D_real_princeton_kwh.csv">sample D</a> (Princeton, NJ, with long winter shutdowns) on the
-<a href="/upload">upload page</a>: most buildings come back as "Can't judge", which is the tool being honest. See <a href="/trust">how far to trust it</a>.</p></div>""", 'example')
+<a href="/upload">upload page</a>: most buildings come back as "Can't judge", which is the tool being honest. See <a href="/method#trust">how far to trust it</a>.</p></div>""", 'example')

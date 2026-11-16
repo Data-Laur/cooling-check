@@ -13,7 +13,7 @@ from app.ingest import read_upload  # noqa: E402
 long, info = read_upload(os.path.join(ROOT, 'samples', 'sample_C_real_orlando_kwh.csv'))
 zips = service.resolve_zips(long, info, 'one', '32816', '')
 out = service.score(long, info, 'kwh', 'standard', zips, False, 'state', 0.0, 3.5)
-body = pages.results_body(out, heading='Example result: 7 real buildings, Orlando FL', buttons=False)
+body = pages.results_body(out, heading='Priorities: 7 real buildings, Orlando FL', buttons=False)
 with open(os.path.join(ROOT, 'app', 'static', 'demo_result.html'), 'w') as f:
     f.write(body)
 print(out['results'][['building', 'verdict', 'as_of']].to_string())

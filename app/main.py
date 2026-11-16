@@ -6,7 +6,7 @@ import tempfile
 import time
 
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
-from fastapi.responses import FileResponse, HTMLResponse
+from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse
 
 from app import pages, service
 from app.ingest import IngestError, read_upload
@@ -62,14 +62,19 @@ def demo():
     return HTMLResponse(pages.verify(token, info, long, loads, defaults={'zip': '32816', 'clock': 'standard'}))
 
 
-@app.get('/trust', response_class=HTMLResponse)
+@app.get('/method', response_class=HTMLResponse)
+def method():
+    return HTMLResponse(pages.method())
+
+
+@app.get('/trust')
 def trust():
-    return HTMLResponse(pages.trust())
+    return RedirectResponse('/method#trust')
 
 
-@app.get('/limits', response_class=HTMLResponse)
+@app.get('/limits')
 def limits():
-    return HTMLResponse(pages.limits())
+    return RedirectResponse('/method#limits')
 
 
 @app.get('/static/{name}')

@@ -26,10 +26,15 @@ def text(html):
     return re.sub(r'\s+', ' ', re.sub(r'<[^>]+>', ' ', html))
 
 
-for p in ('/', '/upload', '/trust', '/limits', '/healthz'):
+for p in ('/', '/upload', '/method', '/healthz'):
     assert c.get(p).status_code == 200
+for p in ('/trust', '/limits'):
+    r0 = c.get(p, follow_redirects=False)
+    assert r0.status_code in (302, 307) and r0.headers['location'].startswith('/method#')
+m = text(c.get('/method').text)
+assert 'How it works' in m and 'How far to trust it' in m and "What we can't see" in m and 'Data and credits' in m
 h = text(c.get('/').text)
-assert 'Example result' in h and 'Panther lodging Cora' in h and 'Check your own data' in h
+assert 'Priorities: 7 real buildings' in h and 'Panther lodging Cora' in h and 'Check your own data' in h
 d = c.get('/demo').text
 assert 'value="32816"' in d and 'name="clock" value="standard" checked' in d
 

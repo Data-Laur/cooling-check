@@ -132,6 +132,11 @@ def score(long, info, unit, clock, zips, shuts_off_winter, price_mode, own_price
                              'rows_without_weather': c['meter_rows_without_weather'],
                              'flagged_hours': c['flagged_hours'], 'median_corr': float(np.nanmedian(corr.values)) if len(corr) else float('nan')})
     results = pd.DataFrame(out_rows)
+    # Priorities: flagged first (most extra cooling first), then within range, then can't judge
+    rank = {'Flagged': 0, 'Within expected range': 1, "Can't judge": 2}
+    results = (results.assign(_r=results['verdict'].map(rank).fillna(3), _x=results['excess ton-hours'].fillna(0),
+                              _h=results['hours above band %'].fillna(0))
+               .sort_values(['_r', '_x', '_h'], ascending=[True, False, False]).drop(columns=['_r', '_x', '_h']).reset_index(drop=True))
     return {'results': results, 'checks': group_checks, 'notes': notes, 'cfg': cfg, 'test_start': test_start,
             'cal_start': cal_start, 'last_day': info['end'], 'price_mode': price_mode, 'price_notes': price_notes,
             'own_price': own_price, 'cop': cop, 'details': details}
