@@ -37,3 +37,8 @@ ehthumbs.db
 # Misc
 .env
 *.log
+
+# Private notes (kept local, not published)
+LEARNING_LOG.md
+Cooling_Check_Project Outline_Checklist.pdf
+ashrae-energy-prediction/
