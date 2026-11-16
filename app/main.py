@@ -111,6 +111,8 @@ def score(token: str = Form(...), unit: str = Form(''), clock: str = Form('local
 
     def back(msg):
         return HTMLResponse(_verify_page(token, long, info, msg), status_code=400)
+    if clock not in ('local', 'standard', 'utc'):
+        clock = 'local'
     if unit not in ('kwh', 'kbtu', 'ton_hours'):
         return back('Please choose the unit of your readings.')
     try:

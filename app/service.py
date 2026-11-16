@@ -71,7 +71,7 @@ def score(long, info, unit, clock, zips, shuts_off_winter, price_mode, own_price
         raise ValueError('Not enough history before the last five months to fit a baseline. Upload a longer file.')
     cfg = Config(unit=unit, cal_start=str(cal_start.date()), test_start=str(test_start.date()),
                  zero_run_limit_hrs=10 ** 6 if shuts_off_winter else 24,
-                 plant_cop=cop, price_per_kwh=0.0, min_excess_pct=AS_OF_FLOOR_PCT)
+                 plant_cop=cop, price_per_kwh=0.0, min_excess_pct=AS_OF_FLOOR_PCT)  # also applied to the verdict, see README
     out_rows, group_checks, notes, price_notes = [], [], list(info['notes']), []
     by_zip = {}
     for b, z in zips.items():
@@ -89,11 +89,14 @@ def score(long, info, unit, clock, zips, shuts_off_winter, price_mode, own_price
             price = 0.0
         gcfg = dataclasses.replace(cfg, price_per_kwh=price)
         sub = long[long['building_id'].isin(blds)][['building_id', 'timestamp', 'meter_reading']]
+        day = pd.Timedelta(days=1)  # one extra day each side, so a clock shift never leaves the edges without weather
         wx = fetch_weather(round(place['lat'], 4), round(place['lon'], 4),
-                           str(sub['timestamp'].min().date()), str(sub['timestamp'].max().date()), clock)
+                           str((sub['timestamp'].min() - day).date()), str((sub['timestamp'].max() + day).date()), clock)
         res = run_site(sub, wx, gcfg, None)
         last_day = sub['timestamp'].max()
-        asof = (status_as_of(res.test, last_day, cfg, UNIT_TO_KBTU[unit]) if len(res.test) else
+        scored_ids = [b for b in res.impact.index if res.impact.loc[b, 'verdict'] != "Can't judge"]  # keep the trust gate
+        asof_test = res.test[res.test['building_id'].isin(scored_ids)]
+        asof = (status_as_of(asof_test, last_day, cfg, UNIT_TO_KBTU[unit]) if len(asof_test) else
                 pd.DataFrame(columns=['status', 'first_flagged', 'back_to_normal_since']))
         # does cooling follow the weather here? daily mean cooling vs daily mean air temperature
         d = sub.merge(wx, on='timestamp').assign(day=lambda x: x['timestamp'].dt.date)

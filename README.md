@@ -72,7 +72,7 @@ I cleaned the raw Kaggle files myself, then checked my work against the dataset 
 
 `app/` is a small FastAPI web app: upload an hourly cooling CSV, confirm what it found (units, the ZIP code of the buildings, the time clock, whether the chillers shut off in winter), then see per-building verdicts with the checks that matter (hottest hour of day, whether cooling follows the weather, hours set aside as bad data). It looks up weather from the buildings' ZIP codes, runs `pipeline.py` once per location, and deletes the upload afterwards. Buildings in different places are supported. Dollars use your state's average commercial electricity price (U.S. EIA, `scripts/update_prices.py`) unless you enter your own rate or skip them.
 
-Run it locally: `pip install -r requirements-app.txt && uvicorn app.main:app --port 8000`. A `Dockerfile` and `render.yaml` are included for Render. The samples in `samples/` are made-up buildings driven by real weather (`scripts/make_samples.py`), not real meter data. `python tests/test_app.py` runs the app end to end (needs internet).
+Run it locally: `pip install -r requirements-app.txt && uvicorn app.main:app --port 8000`. A `Dockerfile` and `render.yaml` are included for Render. `samples/` has two made-up files driven by real weather (`scripts/make_samples.py`) and two real ones, a subset of the Building Data Genome 2 data for the Orlando and Princeton campuses (`scripts/make_real_samples.py`; CC BY 4.0, see Data source). In the app, "Flagged" also requires the excess to be at least 5% of the building's cooling, the floor chosen in the planted-fault tests; the notebook's verdicts do not use it. `python tests/test_app.py` runs the app end to end (needs internet).
 
 ## How far to trust it
 
@@ -117,3 +117,5 @@ There are no confirmed real faults in this data, so I tested the method by **pla
 ## Data source
 
 Miller, C., Kathirgamanathan, A., Picchetti, B. et al. (2020). *The Building Data Genome Project 2, energy meter data from the ASHRAE Great Energy Predictor III competition.* Scientific Data 7, 368. https://doi.org/10.1038/s41597-020-00712-x
+
+The real sample files in `samples/` are a subset of that data (2016 only, 7 buildings per site, reformatted to CSV), shared under [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/); the dataset is on Zenodo, DOI 10.5281/zenodo.3887306.

@@ -47,6 +47,13 @@ t = text(r.text)
 print('\n' + t[t.index('Results'):][:1500])
 assert r.status_code == 200 and 'Phoenix' in t and 'Boston' in t
 
+# Sample C: real Orlando campus data. Expect the two residence halls flagged, and the third clock option to work.
+html, tok = upload('sample_C_real_orlando_kwh.csv')
+r = c.post('/score', data={'token': tok, 'unit': 'kwh', 'clock': 'standard', 'zip_mode': 'one', 'zip': '32816', 'price_mode': 'none'})
+t = text(r.text)
+assert r.status_code == 200 and 'Panther lodging Cora Orlando, FL Flagged' in t and 'Panther lodging Kara Orlando, FL Flagged' in t, t[:1500]
+assert t.count(' Flagged ') >= 2 and 'Results 2 flagged' in t
+
 # Bad inputs are stopped with a plain message.
 html, tok = upload('sample_A_long_kwh.csv')
 r = c.post('/score', data={'token': tok, 'unit': '', 'zip_mode': 'one', 'zip': '02110'})

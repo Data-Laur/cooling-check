@@ -216,8 +216,13 @@ def run_site(meters, weather, cfg, metadata=None):
             g = tp[tp['building_id'] == b]
             above_pct = 100 * g['above'].mean()
             row.update({'calib CV(RMSE) %': round(cal_cv[b], 1), 'hours above band %': round(above_pct, 1)})
+            exc_pct = 100 * g['excess_kbtu'].sum() / max(g['meter_reading'].sum() * to_kbtu, 1e-9)
             if cal_cv[b] > cfg.trust_cv_rmse_max:
-                row.update({'verdict': "Can't judge", 'note': f"model accuracy {cal_cv[b]:.1f}% is worse than {cfg.trust_cv_rmse_max:.0f}%"})
+                acc = 'no cooling in the calibration month' if not np.isfinite(cal_cv[b]) else f"{cal_cv[b]:.1f}% is worse than {cfg.trust_cv_rmse_max:.0f}%"
+                row.update({'verdict': "Can't judge", 'note': f"model accuracy: {acc}"})
+            elif above_pct > cfg.flag_above_pct and exc_pct < cfg.min_excess_pct:
+                row.update({'verdict': 'Within expected range',
+                            'note': f"above the band in {above_pct:.0f}% of hours, but the excess is only {exc_pct:.1f}% of its cooling (below the {cfg.min_excess_pct:g}% floor)"})
             elif above_pct > cfg.flag_above_pct:
                 kwh, dollars, tonnes = to_impact(g['excess_kbtu'].sum(), cfg)
                 row.update({'verdict': 'Flagged',

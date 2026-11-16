@@ -79,10 +79,18 @@ and tells you which buildings are using more than expected, or that it can't jud
 <p><button class="btn" type="submit">Read my file</button></p>
 <p class="hint">Your file is kept only until you see results (or 30 minutes), then deleted. Weather is looked up from a public service using the ZIP codes you give.</p></div>
 <div class="card"><h3>No data handy? Try a sample</h3>
-<p class="hint">The buildings are made up and their cooling is simulated from <strong>real 2023 weather</strong> (Boston, MA, ZIP 02110; Sample B also Phoenix, AZ, ZIP 85004). <strong>Not real meter data.</strong> One building has extra cooling added from October.</p>
+<h4 style="margin-bottom:.2rem">Real meter data</h4>
+<p class="hint">Hourly chilled-water meters for 7 university buildings each, 2016, from the Building Data Genome 2 project. Buildings are anonymized. Enter the ZIP code shown, choose <strong>kWh</strong> and <strong>Local standard time all year</strong> (this dataset has no daylight saving).</p>
+<a class="btn-outline" href="/samples/sample_C_real_orlando_kwh.csv">Sample C: Orlando, FL campus (ZIP 32816)</a>
+<a class="btn-outline" href="/samples/sample_D_real_princeton_kwh.csv">Sample D: Princeton, NJ campus (ZIP 08544)</a>
+<p class="hint">Sample D has long winter shutdowns. Try it with "Do the chillers shut off in winter?" set to No, then Yes, and compare.</p>
+<h4 style="margin-bottom:.2rem">Made-up buildings</h4>
+<p class="hint">Their cooling is simulated from <strong>real 2023 weather</strong> (Boston, MA, ZIP 02110; Sample B also Phoenix, AZ, ZIP 85004). <strong>Not real meter data.</strong> One building has extra cooling added from October.</p>
 <a class="btn-outline" href="/samples/sample_A_long_kwh.csv">Sample A (one row per reading, kWh, ZIP 02110)</a>
 <a class="btn-outline" href="/samples/sample_B_wide_tonhours.csv">Sample B (one column per building, ton-hours, two cities)</a>
-<p class="hint">Sample B has buildings in two places. Choose "Buildings are in different places" and enter <code>Library, 02110</code> and <code>Lab, 85004</code>, one per line. Choose ton-hours for the unit.</p></div>
+<p class="hint">Sample B has buildings in two places. Choose "Buildings are in different places" and enter <code>Library, 02110</code> and <code>Lab, 85004</code>, one per line. Choose ton-hours for the unit.</p>
+<p class="hint">Samples C and D are a subset of data from Miller et al. (2020), <em>Scientific Data</em> 7:368, licensed
+<a href="https://creativecommons.org/licenses/by/4.0/">CC BY 4.0</a>. Changes: 2016 only, 7 buildings per site, reformatted to CSV.</p></div>
 <p class="hint">Portfolio project, not a production system. See <a href="/trust">how far to trust it</a> and <a href="/limits">what it can't see</a>.</p>""", 'check')
 
 
@@ -141,6 +149,7 @@ A typical large building averages from tens to a few hundred tons; a campus buil
 <div class="hint">Building names in your file: {names}</div></div></div>
 <div class="card"><h3>3. Time clock</h3><div class="field">
 <label><input type="radio" name="clock" value="local" checked> Local clock time at each building (changes with daylight saving)</label><br>
+<label><input type="radio" name="clock" value="standard"> Local standard time all year (no daylight saving change)</label><br>
 <label><input type="radio" name="clock" value="utc"> UTC</label></div>
 <p class="hint">After scoring we show the hottest hour of the day. If it isn't mid-afternoon, the clock is probably wrong.</p></div>
 <div class="card"><h3>4. Do the chillers shut off in winter?</h3><div class="field">
@@ -189,7 +198,7 @@ def results(out):
             warns.append(f"At {c['place']}, cooling barely follows the outdoor temperature (median correlation {c['median_corr']:.2f}). "
                          'The ZIP code may be wrong, or this equipment may not be weather-driven. Most buildings here will come back as "Can\'t judge".')
         if c['rows_without_weather']:
-            warns.append(f"At {c['place']}, {c['rows_without_weather']:,} meter readings had no weather (usually dates too recent for the weather archive) and were not used.")
+            warns.append(f"At {c['place']}, {c['rows_without_weather']:,} meter readings had no weather (the file may run past the latest dates the weather archive has) and were not used.")
     for c in checks:
         g = r[r['zip'] == c['zip']]
         if len(g) and (g['verdict'] == "Can't judge").all():
@@ -236,7 +245,7 @@ def results(out):
 {cost_note}<div class="tw"><table><thead><tr>{head}</tr></thead><tbody>{body}</tbody></table></div><div class="stack">{cards}</div>
 <div style="margin-top:.8rem">{notes}</div></div>
 <div class="card"><h3>How to read this</h3><ul>
-<li><strong>Flagged</strong>: more than 10% of the last five months' hours were above the 90% band. Excess is only the part above the band's upper edge, so it is conservative.</li>
+<li><strong>Flagged</strong>: more than 10% of the last five months' hours were above the 90% band <em>and</em> the excess is at least 5% of the building's cooling. Excess is only the part above the band's upper edge, so it is conservative.</li>
 <li><strong>Status on {E(us_date(out['last_day']))}</strong> looks at the most recent weeks only: "Flagged, ongoing", "Was flagged, back to normal", or "Within expected range".</li>
 <li><strong>Can't judge</strong> means the model wasn't accurate enough on this building (or there wasn't enough clean data), so we don't guess.</li>
 <li>Excess cooling is <strong>potential</strong>, not realized: a meter change or a legitimate change in use looks the same. Check the meter first.</li></ul>
