@@ -10,6 +10,7 @@ import pandas as pd
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from pipeline import Config, KBTU_PER_KWH, UNIT_TO_KBTU, describe_excess, run_site, status_as_of  # noqa: E402
+from app.detail import build_detail  # noqa: E402
 from app.weather import WeatherError, fetch_weather, zip_to_place  # noqa: E402
 
 UNIT_LABELS = {'kwh': 'kWh (electric-equivalent thermal energy)', 'kbtu': 'kBTU', 'ton_hours': 'ton-hours'}
@@ -73,6 +74,7 @@ def score(long, info, unit, clock, zips, shuts_off_winter, price_mode, own_price
                  zero_run_limit_hrs=10 ** 6 if shuts_off_winter else 24,
                  plant_cop=cop, price_per_kwh=0.0, min_excess_pct=AS_OF_FLOOR_PCT)  # also applied to the verdict, see README
     out_rows, group_checks, notes, price_notes = [], [], list(info['notes']), []
+    details = {}
     by_zip = {}
     for b, z in zips.items():
         by_zip.setdefault(z, []).append(b)
@@ -116,6 +118,14 @@ def score(long, info, unit, clock, zips, shuts_off_winter, price_mode, own_price
             if r is not None and price:
                 row['cost $'] = r.get('cost $')
             out_rows.append(row)
+            gb = res.test[res.test['building_id'] == b]
+            if len(gb):
+                d_ = build_detail(gb, UNIT_TO_KBTU[unit] / 12.0)
+                d_.update({'id': b, 'verdict': row['verdict'], 'status': row['as_of'], 'cv': row['calib CV(RMSE) %'],
+                           'above_pct': row['hours above band %'], 'excess_th': row['excess ton-hours'],
+                           'excess_pct': row['excess % of cooling'], 'note': row['note'], 'place': place['name'],
+                           'cost': row.get('cost $'), 'hint': row['hint']})
+                details[b] = d_
         c = res.checks
         group_checks.append({'zip': z, 'place': place['name'], 'buildings': len(blds),
                              'hottest_hour': c['hottest_hour'], 'hottest_hour_plausible': c['hottest_hour_plausible'],
@@ -124,4 +134,4 @@ def score(long, info, unit, clock, zips, shuts_off_winter, price_mode, own_price
     results = pd.DataFrame(out_rows)
     return {'results': results, 'checks': group_checks, 'notes': notes, 'cfg': cfg, 'test_start': test_start,
             'cal_start': cal_start, 'last_day': info['end'], 'price_mode': price_mode, 'price_notes': price_notes,
-            'own_price': own_price, 'cop': cop}
+            'own_price': own_price, 'cop': cop, 'details': details}

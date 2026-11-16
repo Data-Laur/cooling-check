@@ -3,6 +3,7 @@ import html
 import json
 import os
 
+import numpy as np
 import pandas as pd
 
 E = html.escape
@@ -64,6 +65,13 @@ table{border-collapse:collapse;width:100%;font-variant-numeric:tabular-nums} th,
 th{background:#E8ECF8;color:var(--ink);text-transform:uppercase;font-size:.85rem;letter-spacing:.04em} td.num,th.num{text-align:right}
 .badge{display:inline-block;padding:.25rem .8rem;border-radius:999px;font-weight:600;font-size:.85rem;text-align:center;line-height:1.3}
 th.nw{white-space:nowrap}
+main{overflow-x:hidden}.card{overflow-x:auto}
+body.detail-open main > *:not(#detail-view){display:none}
+#detail-view{display:none}body.detail-open #detail-view{display:block}
+.chart{width:100%;height:380px;margin:.5rem 0}.chart.short{height:300px}
+.wknav{display:flex;gap:.5rem;flex-wrap:wrap;align-items:center;margin:.5rem 0}.wknav select{min-width:15rem}
+.btn-outline[disabled]{opacity:.45;cursor:default}
+td a[data-b],.srow a[data-b]{font-weight:600}
 .stats{display:flex;gap:.75rem;flex-wrap:wrap;margin:.2rem 0 .8rem}.stat{background:#EEF7FA;border:1px solid var(--border);border-radius:10px;padding:.6rem .9rem;min-width:9rem}
 .stat b{display:block;font-size:1.35rem;color:var(--ink);line-height:1.2}.stat span{color:var(--muted);font-size:.85rem}
 .chips{display:flex;gap:.4rem;flex-wrap:wrap;margin:.3rem 0 .8rem}.chip{background:#fff;border:1px solid var(--border);border-radius:999px;padding:.15rem .7rem;font-size:.9rem}
@@ -214,26 +222,53 @@ def _fmt(v, kind=''):
     return E(str(v))
 
 
+def _clean(v):
+    if isinstance(v, dict):
+        return {k: _clean(x) for k, x in v.items()}
+    if isinstance(v, (list, tuple)):
+        return [_clean(x) for x in v]
+    if isinstance(v, (np.integer,)):
+        return int(v)
+    if isinstance(v, (float, np.floating)):
+        return None if np.isnan(v) else float(v)
+    return v
+
+
+def _detail_json(out):
+    d = {}
+    for k, v in out['details'].items():
+        v = dict(v)
+        h = v.pop('hint')
+        v['name'] = dn(k)
+        v['hint_html'] = _hint_ul(h) if v['verdict'] == 'Flagged' else ''
+        v['onset'] = str(h['onset']) if h else None
+        d[k] = _clean(v)
+    return json.dumps(d).replace('</', '<\\/')
+
+
+def _hint_ul(h):
+    lines = ['<li><strong>Check the meter first.</strong> A meter change or recalibration looks the same as extra cooling.</li>']
+    if not h:
+        lines.append('<li>No clear start date or timing pattern stood out.</li>')
+    else:
+        o = pd.Timestamp(h['onset'])
+        lines.append(f"<li>The extra cooling began around <strong>{o.strftime('%B')} {o.day}, {o.year}</strong>. Ask what changed then: controls, setpoints, tenants, equipment.</li>")
+        pct = lambda x: f'{100 * x:.0f}%'
+        if h['pattern'] == 'after_hours':
+            lines.append(f"<li>Most of the extra ({pct(h['excess_after_hours_share'])}) is on nights and weekends, against {pct(h['normal_after_hours_share'])} of normal use. Check schedules, setpoint setbacks and after-hours operation.</li>")
+        elif h['pattern'] == 'occupied_hours':
+            lines.append(f"<li>Most of the extra is on weekdays between 7 AM and 7 PM (only {pct(h['excess_after_hours_share'])} is after hours, against {pct(h['normal_after_hours_share'])} of normal use). Check what runs during the day: setpoints, ventilation, occupancy changes.</li>")
+        else:
+            lines.append('<li>The extra is spread across the day and the week, so timing does not narrow it down.</li>')
+    return '<ul>' + ''.join(lines) + '</ul>'
+
+
 def _hints(r):
     items = ''
     for _, row in r.iterrows():
         if row.get('verdict') != 'Flagged':
             continue
-        h = row.get('hint')
-        lines = ['<li><strong>Check the meter first.</strong> A meter change or recalibration looks the same as extra cooling.</li>']
-        if not h:
-            lines.append('<li>No clear start date or timing pattern stood out.</li>')
-        else:
-            o = pd.Timestamp(h['onset'])
-            lines.append(f"<li>The extra cooling began around <strong>{o.strftime('%B')} {o.day}, {o.year}</strong>. Ask what changed then: controls, setpoints, tenants, equipment.</li>")
-            pct = lambda x: f'{100 * x:.0f}%'
-            if h['pattern'] == 'after_hours':
-                lines.append(f"<li>Most of the extra ({pct(h['excess_after_hours_share'])}) is on nights and weekends, against {pct(h['normal_after_hours_share'])} of normal use. Check schedules, setpoint setbacks and after-hours operation.</li>")
-            elif h['pattern'] == 'occupied_hours':
-                lines.append(f"<li>Most of the extra is on weekdays between 7 AM and 7 PM (only {pct(h['excess_after_hours_share'])} is after hours, against {pct(h['normal_after_hours_share'])} of normal use). Check what runs during the day: setpoints, ventilation, occupancy changes.</li>")
-            else:
-                lines.append('<li>The extra is spread across the day and the week, so timing does not narrow it down.</li>')
-        items += f"<h4 style='margin:.8rem 0 .2rem'>{E(dn(row['building']))}</h4><ul>{''.join(lines)}</ul>"
+        items += f"<h4 style='margin:.8rem 0 .2rem'>{E(dn(row['building']))}</h4>" + _hint_ul(row.get('hint'))
     if not items:
         return ''
     return ('<div class="card"><h3>Where to look first</h3><p class="hint">Hints from when and how the extra cooling shows up, '
@@ -277,13 +312,17 @@ def results_body(out, heading='Results', buttons=True):
             ('excess % of cooling', 'Excess, % of its cooling', 'pct'), ('excess ton-hours', 'Excess ton-hours', 'int')]
     if price:
         cols.append(('cost $', 'Potential cost', 'usd'))
+    detail = _detail_json(out)
+
     def cell(row, k, kind):
+        if k == 'building' and row.get('building') in out['details']:
+            return f'<a href="#" data-b="{E(str(row["building"]))}">{E(dn(row["building"]))}</a>'
         v = dn(row.get(k)) if k == 'building' else row.get(k)
         return _badge(v) if kind == 'badge' else _fmt(v, kind)
     head = ''.join(f"<th class='{'num' if kind in ('pct', 'int', 'usd') else ''}'>{E(l)}</th>" for _, l, kind in cols)
     body = ''.join('<tr>' + ''.join(f"<td class='{'num' if kind in ('pct', 'int', 'usd') else ''}'>{cell(row, k, kind)}</td>"
                                     for k, _, kind in cols) + '</tr>' for _, row in r.iterrows())
-    cards = ''.join('<div class="srow"><strong>' + E(dn(row['building'])) + '</strong>' + ''.join(
+    cards = ''.join('<div class="srow"><strong>' + cell(row, 'building', '') + '</strong>' + ''.join(
         f"<div class='l'><span>{E(l)}</span><span>{cell(row, k, kind)}</span></div>" for k, l, kind in cols[1:]) +
         (f"<div class='hint'>{E(str(row['note']))}</div>" if _has(row.get('note')) else '') + '</div>' for _, row in r.iterrows())
     notes = ''.join(f"<div class='hint'><strong>{E(dn(row['building']))}:</strong> {E(str(row['note']))}</div>"
@@ -311,7 +350,9 @@ def results_body(out, heading='Results', buttons=True):
 <li><strong>Can't judge</strong> means the model wasn't accurate enough on this building (or there wasn't enough clean data), so we don't guess.</li>
 <li>Excess cooling is <strong>potential</strong>, not realized: a meter change or a legitimate change in use looks the same. Check the meter first.</li></ul>
 <p class="hint">Test period {E(us_date(out['test_start']))} onward; the month before was used to calibrate the band; earlier data to fit the baseline.</p></div>
-""" + ('<p><a class="btn" href="/upload">Check another file</a> <a class="btn-outline" href="/trust">How far to trust it</a></p>' if buttons else ''))
+""" + ('<p><a class="btn" href="/upload">Check another file</a> <a class="btn-outline" href="/trust">How far to trust it</a></p>' if buttons else '')
+            + f'<div id="detail-view"></div><script src="https://cdn.plot.ly/plotly-2.35.2.min.js" charset="utf-8"></script>'
+              f'<script>window.DETAIL = {detail};</script><script src="/static/detail.js"></script>')
 
 
 def trust():

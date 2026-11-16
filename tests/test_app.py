@@ -22,6 +22,7 @@ def upload(name):
 
 
 def text(html):
+    html = re.sub(r'(?s)<script.*?</script>', ' ', html)
     return re.sub(r'\s+', ' ', re.sub(r'<[^>]+>', ' ', html))
 
 
@@ -40,6 +41,8 @@ t = text(r.text)
 print(t[t.index('Results'):][:1500])
 assert r.status_code == 200 and 'Science Hall' in t and 'Flagged' in t and 'Science_Hall' not in t
 assert 'Where to look first' in t and 'October 1, 2023' in t and 'Check the meter first' in t, t[t.index('Results'):][:200]
+assert 'window.DETAIL' in r.text and 'data-b="Science_Hall"' in r.text and '/static/detail.js' in r.text
+assert c.get('/static/detail.js').status_code == 200
 assert 'EIA' in t and 'suitable for import' in text(html) and 'January 1, 2023' in text(html) and '12-31-2023' in t
 assert c.post('/score', data={'token': tok, 'unit': 'kwh', 'zip_mode': 'one', 'zip': '02110'}).status_code == 410  # deleted after use
 
