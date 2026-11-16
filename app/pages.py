@@ -23,6 +23,16 @@ def us_date(ts):
     return pd.Timestamp(ts).strftime('%m-%d-%Y')
 
 
+def short_range(a, b):
+    a, b = pd.Timestamp(a), pd.Timestamp(b)
+    return f"{a.strftime('%b')} {a.day}, {a.year} to {b.strftime('%b')} {b.day}, {b.year}"
+
+
+def span_days_text(a, b):
+    days = (pd.Timestamp(b).normalize() - pd.Timestamp(a).normalize()).days + 1
+    return f'{days} days ({days / 30.4:.0f} months)'
+
+
 def hour12(h):
     return f"{int(h) % 12 or 12}:00 {'AM' if int(h) < 12 else 'PM'}"
 
@@ -53,6 +63,9 @@ table{border-collapse:collapse;width:100%;font-variant-numeric:tabular-nums} th,
 th{background:#E8ECF8;color:var(--ink);text-transform:uppercase;font-size:.85rem;letter-spacing:.04em} td.num,th.num{text-align:right}
 .badge{display:inline-block;padding:.25rem .8rem;border-radius:999px;font-weight:600;font-size:.85rem;text-align:center;line-height:1.3}
 th.nw{white-space:nowrap}
+.stats{display:flex;gap:.75rem;flex-wrap:wrap;margin:.2rem 0 .8rem}.stat{background:#EEF7FA;border:1px solid var(--border);border-radius:10px;padding:.6rem .9rem;min-width:9rem}
+.stat b{display:block;font-size:1.35rem;color:var(--ink);line-height:1.2}.stat span{color:var(--muted);font-size:.85rem}
+.chips{display:flex;gap:.4rem;flex-wrap:wrap;margin:.3rem 0 .8rem}.chip{background:#fff;border:1px solid var(--border);border-radius:999px;padding:.15rem .7rem;font-size:.9rem}
 .b-flag{background:#FDE7C7;color:#8A4B00}.b-ok{background:#D9F2E3;color:#14532D}.b-no{background:#E5E7EF;color:#374151}
 label{font-weight:600} .field{margin:.9rem 0} .hint{color:var(--muted);font-size:.9rem} input[type=text],input[type=number],textarea,select{font:inherit;padding:.4rem .5rem;border:1px solid var(--border);border-radius:6px;max-width:100%}
 .stack{display:none} .srow{border:1px solid var(--border);border-radius:10px;padding:12px 14px;margin-bottom:10px}.srow .l{display:flex;justify-content:space-between;gap:.7rem;padding:.15rem 0}.srow .l span:first-child{color:var(--muted)}
@@ -136,12 +149,17 @@ def verify(token, info, long, loads, form_error='', defaults=None):
                  f' &nbsp; ZIP <input type="text" name="zip" size="6" maxlength="5" inputmode="numeric" placeholder="02110" value="{zip_val}"><br>'
                  '<label><input type="radio" name="zip_mode" value="table"> Buildings are in different places</label>')
     names = ', '.join(E(dn(b)) for b in info['buildings'][:12]) + ('...' if len(info['buildings']) > 12 else '')
+    chips = ''.join(f'<span class="chip">{E(dn(b))}</span>' for b in info['buildings'])
     err = f'<div class="warn">{E(form_error)}</div>' if form_error else ''
     return page(f"""
 <h1>Check what we found</h1>{err}
 <div class="card"><h3>Your file</h3>
-<p>We read it as {found}.</p>
-<p>{info['rows']:,} hourly readings, {len(info['buildings'])} buildings ({names}), from {E(long_dt(info['start']))} to {E(long_dt(info['end']))}.</p>
+<div class="stats">
+<div class="stat"><b>{info['rows']:,}</b><span>hourly readings</span></div>
+<div class="stat"><b>{len(info['buildings'])}</b><span>buildings</span></div>
+<div class="stat"><b>{E(short_range(info['start'], info['end']))}</b><span>{E(span_days_text(info['start'], info['end']))}</span></div></div>
+<div class="chips">{chips}</div>
+<p class="hint">Read as {found}. First reading {E(long_dt(info['start']))}; last reading {E(long_dt(info['end']))}.</p>
 {notes_box}</div>
 <form action="/score" method="post"><input type="hidden" name="token" value="{E(token)}">
 <div class="card"><h3>1. Units</h3><p class="hint">What unit are your readings in? To help you check, here is what your numbers would mean as tons of cooling in each case.
@@ -189,6 +207,8 @@ def _fmt(v, kind=''):
         return f'{float(v):.1f}%'
     if kind == 'int':
         return f'{float(v):,.0f}'
+    if kind == 'usd':
+        return f'${float(v):,.0f}'
     return E(str(v))
 
 
@@ -254,12 +274,12 @@ def results_body(out, heading='Results', buttons=True):
             ('as_of', f"Status on {us_date(out['last_day'])}", ''), ('hours above band %', 'Hours above band', 'pct'),
             ('excess % of cooling', 'Excess, % of its cooling', 'pct'), ('excess ton-hours', 'Excess ton-hours', 'int')]
     if price:
-        cols.append(('cost $', 'Potential cost $', 'int'))
+        cols.append(('cost $', 'Potential cost', 'usd'))
     def cell(row, k, kind):
         v = dn(row.get(k)) if k == 'building' else row.get(k)
         return _badge(v) if kind == 'badge' else _fmt(v, kind)
-    head = ''.join(f"<th class='{'num' if kind in ('pct', 'int') else ''}'>{E(l)}</th>" for _, l, kind in cols)
-    body = ''.join('<tr>' + ''.join(f"<td class='{'num' if kind in ('pct', 'int') else ''}'>{cell(row, k, kind)}</td>"
+    head = ''.join(f"<th class='{'num' if kind in ('pct', 'int', 'usd') else ''}'>{E(l)}</th>" for _, l, kind in cols)
+    body = ''.join('<tr>' + ''.join(f"<td class='{'num' if kind in ('pct', 'int', 'usd') else ''}'>{cell(row, k, kind)}</td>"
                                     for k, _, kind in cols) + '</tr>' for _, row in r.iterrows())
     cards = ''.join('<div class="srow"><strong>' + E(dn(row['building'])) + '</strong>' + ''.join(
         f"<div class='l'><span>{E(l)}</span><span>{cell(row, k, kind)}</span></div>" for k, l, kind in cols[1:]) +
@@ -278,7 +298,7 @@ def results_body(out, heading='Results', buttons=True):
     return (f"""
 <h1>{E(heading)}</h1><p><strong>{E(summary)}</strong></p>
 <div class="card"><h3>Checks before you trust this</h3>{wtxt}
-<table><thead><tr><th>Location</th><th class="num">Buildings</th><th class="num nw">Hottest hour</th><th class="num">Cooling vs temperature</th><th class="num">Hours set aside<br>as bad data</th></tr></thead><tbody>{chk_rows}</tbody></table></div>
+<table><thead><tr><th>Location</th><th class="num">Buildings</th><th class="num nw">Hottest hour</th><th class="num">Cooling vs temp</th><th class="num">Hours set aside<br>as bad data</th></tr></thead><tbody>{chk_rows}</tbody></table></div>
 <div class="card"><h3>Buildings</h3>
 {cost_note}<div class="tw"><table><thead><tr>{head}</tr></thead><tbody>{body}</tbody></table></div><div class="stack">{cards}</div>
 <div style="margin-top:.8rem">{notes}</div></div>
@@ -332,7 +352,6 @@ def home():
     with open(DEMO_PATH) as f:
         demo = f.read()
     return page(f"""
-<h1>Is a building using more cooling than the weather explains?</h1>
 <p>Cooling Check compares each hour's chilled-water use with what the weather says the building should use, and tells you which buildings to look at first, or that it can't judge. Below is a real example. <strong>Then check your own data.</strong></p>
 <p><a class="btn" href="/upload">Check your own data</a> <a class="btn-outline" href="/demo">Run this example live</a></p>
 <div class="card"><p class="hint"><strong>Real data, saved result.</strong> Hourly chilled-water meters for 7 university buildings in Orlando, Florida, 2016
