@@ -69,7 +69,12 @@ main{overflow-x:hidden}.card{overflow-x:auto}
 body.detail-open main > *:not(#detail-view){display:none}
 #detail-view{display:none}body.detail-open #detail-view{display:block}
 .chart{width:100%;height:380px;margin:.5rem 0}.chart.short{height:300px}
-.wknav{display:flex;gap:.5rem;flex-wrap:wrap;align-items:center;margin:.5rem 0}.wknav select{min-width:15rem}
+.wknav{display:flex;gap:.5rem;flex-wrap:wrap;align-items:center;margin:.5rem 0}svg.chev{pointer-events:none}
+.wknav select{min-width:15rem;appearance:none;-webkit-appearance:none;padding:.5rem 2.6rem .5rem .8rem;border:1px solid var(--border);border-radius:8px;background-color:#fff;cursor:pointer;
+  background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%231D2459' stroke-width='3.4' stroke-linecap='round' stroke-linejoin='round'><polyline points='5 9 12 16 19 9'/></svg>");
+  background-repeat:no-repeat;background-position:right 1rem center;background-size:16px 16px}
+.iconbtn{display:inline-flex;align-items:center;gap:.45rem}
+.btn-outline.active{background:#0E7490;color:#fff;border-color:#0E7490}
 .btn-outline[disabled]{opacity:.45;cursor:default}
 td a[data-b],.srow a[data-b]{font-weight:600}
 .stats{display:flex;gap:.75rem;flex-wrap:wrap;margin:.2rem 0 .8rem}.stat{background:#EEF7FA;border:1px solid var(--border);border-radius:10px;padding:.6rem .9rem;min-width:9rem}
@@ -357,7 +362,7 @@ def results_body(out, heading='Results', buttons=True):
 <p class="hint">Test period {E(us_date(out['test_start']))} onward; the month before was used to calibrate the band; earlier data to fit the baseline.</p></div>
 """ + ('<p><a class="btn" href="/upload">Check another file</a> <a class="btn-outline" href="/method#trust">How far to trust it</a></p>' if buttons else '')
             + f'<div id="detail-view"></div><script src="https://cdn.plot.ly/plotly-2.35.2.min.js" charset="utf-8"></script>'
-              f'<script>window.DETAIL = {detail};</script><script src="/static/detail.js?v=4"></script>')
+              f'<script>window.DETAIL = {detail};</script><script src="/static/detail.js?v=5"></script>')
 
 
 def method():

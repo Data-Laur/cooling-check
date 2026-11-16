@@ -14,6 +14,8 @@
     var a = startMs(b) + k * 7 * 864e5, z = a + 6 * 864e5;
     return dayLabel(a) + ' to ' + dayLabel(z) + ', ' + new Date(z).getUTCFullYear();
   }
+  var ARW = 'width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"';
+  var LEFT = '<svg ' + ARW + '><path d="M19 12H5M12 19l-7-7 7-7"/></svg>', RIGHT = '<svg ' + ARW + '><path d="M5 12h14M12 5l7 7-7 7"/></svg>';
   function fmt(n) { return n == null ? '-' : Math.round(n).toLocaleString('en-US'); }
   function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
   function base(xt, yt) {
@@ -69,6 +71,9 @@
       (st.hrs ? st.ab + ' of ' + st.hrs + ' hours above the band; extra cooling ' + fmt(st.over) + ' ton-hours (' + st.pct.toFixed(1) + '% of this week\'s cooling).'
               : 'no usable readings this week.');
     document.getElementById('wk').value = cur.week;
+    var pk = document.getElementById('wk-worst'), atPeak = cur.week === b.worst_week;
+    pk.classList.toggle('active', atPeak); pk.setAttribute('aria-pressed', atPeak ? 'true' : 'false');
+    pk.textContent = atPeak ? "You're at the peak week" : 'Jump to peak week';
     document.getElementById('wk-prev').disabled = cur.week <= 0;
     document.getElementById('wk-next').disabled = cur.week >= b.n_weeks - 1;
     drawDaily(b);
@@ -106,8 +111,12 @@
   }
   function drawMonth(b) {
     var m = b.monthly, L = base(undefined, 'Cooling (ton-hours)'); L.barmode = 'group';
-    Plotly.newPlot('chart-month', [{ x: m.months, y: m.actual, type: 'bar', name: 'Actual', marker: { color: C.actual } },
-      { x: m.months, y: m.expected, type: 'bar', name: 'Expected', marker: { color: C.expected } }], L, { displayModeBar: false, responsive: true });
+    var tip = function (name, color) {
+      return { hovertemplate: '<b>%{x}</b><br>' + name + ': %{y:,.0f} ton-hours<extra></extra>', hoverlabel: { bgcolor: color, bordercolor: color, font: { color: '#ffffff', size: 13 } } };
+    };
+    var a = Object.assign({ x: m.months, y: m.actual, type: 'bar', name: 'Actual', marker: { color: C.actual } }, tip('Actual', C.actual));
+    var e = Object.assign({ x: m.months, y: m.expected, type: 'bar', name: 'Expected', marker: { color: C.expected } }, tip('Expected', C.expected));
+    Plotly.newPlot('chart-month', [a, e], L, { displayModeBar: false, responsive: true });
   }
   function drawScatter(b) {
     var ax = [], ay = [], bx = [], by = [];
@@ -129,16 +138,16 @@
   function render(id, week) {
     var b = D[id]; if (!b) return;
     cur.id = id; cur.week = Math.max(0, Math.min(b.n_weeks - 1, week == null ? b.worst_week : week));
-    var opts = ''; for (var k = 0; k < b.n_weeks; k++) opts += '<option value="' + k + '">' + esc(weekLabel(b, k)) + (k === b.worst_week && b.excess_th ? ' (most extra cooling)' : '') + '</option>';
+    var opts = ''; for (var k = 0; k < b.n_weeks; k++) opts += '<option value="' + k + '">' + esc(weekLabel(b, k)) + (k === b.worst_week && b.excess_th ? ' (peak week)' : '') + '</option>';
     var warn = b.verdict === "Can't judge" ? '<div class="warn"><strong>Can\'t judge this building.</strong> ' + esc(b.note || '').replace(/\.?$/, '.') + ' The band below is not reliable, so treat these charts as raw data.</div>' : '';
     var hint = b.hint_html ? '<div class="card"><h3>Where to look first</h3><p class="hint">Hints, not a diagnosis.</p>' + b.hint_html + '</div>' : '';
     var el = document.getElementById('detail-view');
     el.innerHTML =
-      '<p><button class="btn" id="back">&larr; Back to results</button></p><h1>' + esc(b.name) + '</h1><p class="hint">' + esc(b.place) + '. Cooling is shown in tons (1 ton = 12,000 BTU per hour).</p>' +
+      '<p><button class="btn iconbtn" id="back">' + LEFT + ' Back to results</button></p><h1>' + esc(b.name) + '</h1><p class="hint">' + esc(b.place) + '. Cooling is shown in tons (1 ton = 12,000 BTU per hour).</p>' +
       warn + chips(b) + hint +
       '<div class="card"><h3>Week by week: actual vs expected</h3><p class="hint">Expected is what the weather says this building should use. Outside the shaded 90% band means more (or less) than expected. Red dots are hours above the band.</p>' +
-      '<div class="wknav"><button class="btn-outline" id="wk-prev">&larr; Previous week</button><select id="wk" aria-label="Week">' + opts + '</select>' +
-      '<button class="btn-outline" id="wk-next">Next week &rarr;</button><button class="btn-outline" id="wk-worst">Jump to most extra cooling</button></div>' +
+      '<div class="wknav"><button class="btn-outline iconbtn" id="wk-prev">' + LEFT + ' Previous week</button><select id="wk" aria-label="Week">' + opts + '</select>' +
+      '<button class="btn-outline iconbtn" id="wk-next">Next week ' + RIGHT + '</button><button class="btn-outline" id="wk-worst" title="The week with the most cooling above the band">Jump to peak week</button></div>' +
       '<p id="wk-stats" class="notebox"></p><div id="chart-week" class="chart" role="img" aria-label="Actual vs expected cooling for the selected week"></div></div>' +
       '<div class="card"><h3>Every day, at a glance</h3><p class="hint">Extra cooling above the band, per day. Click a bar to jump to that week. The shaded strip is the week above.</p><div id="chart-daily" class="chart short"></div></div>' +
       '<div class="card"><h3>When in the week does the extra happen? (ton-hours above the band)</h3><div id="chart-heat" class="chart short"></div></div>' +
