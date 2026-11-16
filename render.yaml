@@ -1,0 +1,12 @@
+# Render Blueprint for the Cooling Check app (Docker). Reference; deploy through Render's "New Web Service".
+services:
+  - type: web
+    name: cooling-check
+    runtime: docker
+    plan: starter
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /healthz
+    autoDeploy: true
+    envVars:
+      - key: PORT
+        value: "8000"

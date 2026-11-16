@@ -1,0 +1,8 @@
+# Server dependencies for the Cooling Check web app (Docker/Render). The notebook uses requirements.txt.
+numpy==2.5.3
+pandas==3.0.6
+scipy==1.18.1
+scikit-learn==1.9.1
+fastapi==0.128.8
+uvicorn==0.39.0
+python-multipart==0.0.20

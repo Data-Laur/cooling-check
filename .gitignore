@@ -23,7 +23,7 @@ build/
 
 # Data (if downloaded)
 *.csv
-data/
+!samples/*.csvdata/
 *.xlsx
 
 # OS

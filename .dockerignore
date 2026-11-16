@@ -1,0 +1,10 @@
+venv
+ashrae-energy-prediction
+figures
+*.ipynb
+*.csv
+!samples/*.csv
+LEARNING_LOG.md
+DEMO_SCRIPT.md
+.git
+__pycache__

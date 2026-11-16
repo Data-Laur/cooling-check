@@ -68,6 +68,12 @@ I cleaned the raw Kaggle files myself, then checked my work against the dataset 
 - **Units:** the Kaggle chilled water readings equal the authors' kWh values times 3.412 in every hour, so they are in kBTU.
 - **Time zones:** the Kaggle weather is in UTC, and this site's local time is a fixed UTC minus 5 hours with no daylight saving. My first fix applied daylight saving and was one hour off in summer; the check caught it, and every section was re-run after the correction.
 
+## The app
+
+`app/` is a small FastAPI web app: upload an hourly cooling CSV, confirm what it found (units, the ZIP code of the buildings, the time clock, whether the chillers shut off in winter), then see per-building verdicts with the checks that matter (hottest hour of day, whether cooling follows the weather, hours set aside as bad data). It looks up weather from the buildings' ZIP codes, runs `pipeline.py` once per location, and deletes the upload afterwards. Buildings in different places are supported. It reports dollars only if you enter a price.
+
+Run it locally: `pip install -r requirements-app.txt && uvicorn app.main:app --port 8000`. A `Dockerfile` and `render.yaml` are included for Render. The samples in `samples/` are made-up buildings driven by real weather (`scripts/make_samples.py`), not real meter data. `python tests/test_app.py` runs the app end to end (needs internet).
+
 ## How far to trust it
 
 There are no confirmed real faults in this data, so I tested the method by **planting faults**: multiplying a building's readings by 1.10, 1.25 or 1.50 from a chosen date, then checking what the tool says on month-end dates (`scripts/as_of_test.py`). I also ran the same, unchanged pipeline on three other sites (Tempe AZ, Princeton NJ, Austin TX) from the same dataset (`scripts/compare_sites.py`).
