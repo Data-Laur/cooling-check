@@ -30,7 +30,7 @@ def zip_to_place(zip_code):
     d = _get_json(f'https://api.zippopotam.us/us/{z}')
     p = d['places'][0]
     return {'zip': z, 'lat': float(p['latitude']), 'lon': float(p['longitude']),
-            'name': f"{p['place name']}, {p['state abbreviation']}"}
+            'name': f"{p['place name']}, {p['state abbreviation']}", 'state': p['state abbreviation']}
 
 
 @lru_cache(maxsize=64)

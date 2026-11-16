@@ -70,7 +70,7 @@ I cleaned the raw Kaggle files myself, then checked my work against the dataset 
 
 ## The app
 
-`app/` is a small FastAPI web app: upload an hourly cooling CSV, confirm what it found (units, the ZIP code of the buildings, the time clock, whether the chillers shut off in winter), then see per-building verdicts with the checks that matter (hottest hour of day, whether cooling follows the weather, hours set aside as bad data). It looks up weather from the buildings' ZIP codes, runs `pipeline.py` once per location, and deletes the upload afterwards. Buildings in different places are supported. It reports dollars only if you enter a price.
+`app/` is a small FastAPI web app: upload an hourly cooling CSV, confirm what it found (units, the ZIP code of the buildings, the time clock, whether the chillers shut off in winter), then see per-building verdicts with the checks that matter (hottest hour of day, whether cooling follows the weather, hours set aside as bad data). It looks up weather from the buildings' ZIP codes, runs `pipeline.py` once per location, and deletes the upload afterwards. Buildings in different places are supported. Dollars use your state's average commercial electricity price (U.S. EIA, `scripts/update_prices.py`) unless you enter your own rate or skip them.
 
 Run it locally: `pip install -r requirements-app.txt && uvicorn app.main:app --port 8000`. A `Dockerfile` and `render.yaml` are included for Render. The samples in `samples/` are made-up buildings driven by real weather (`scripts/make_samples.py`), not real meter data. `python tests/test_app.py` runs the app end to end (needs internet).
 

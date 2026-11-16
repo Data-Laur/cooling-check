@@ -41,8 +41,8 @@ for name, base, slope, kw in [('Library', 25, 9, {}), ('Science_Hall', 40, 14, {
 a = pd.concat(rows, ignore_index=True)
 a.to_csv(os.path.join(ROOT, 'samples', 'sample_A_long_kwh.csv'), index=False)
 
-b = pd.DataFrame({'timestamp': bos['timestamp'], 'Boston_Library_tonhours': tons(bos, 25, 9).round(2)})
-b['Phoenix_Lab_tonhours'] = tons(phx.set_index('timestamp').reindex(bos['timestamp']).reset_index().ffill(), 45, 6, 8.0).round(2).values
+b = pd.DataFrame({'timestamp': bos['timestamp'], 'Library': tons(bos, 25, 9).round(2)})
+b['Lab'] = tons(phx.set_index('timestamp').reindex(bos['timestamp']).reset_index().ffill(), 45, 6, 8.0).round(2).values
 b.to_csv(os.path.join(ROOT, 'samples', 'sample_B_wide_tonhours.csv'), index=False)
 print(a.groupby('building_id')['cooling_kwh'].describe().round(0))
 print(b.describe().round(1))

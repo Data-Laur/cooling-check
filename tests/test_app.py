@@ -31,17 +31,18 @@ for p in ('/', '/trust', '/limits', '/healthz'):
 # Sample A: long, kWh, one ZIP. Expect Science_Hall flagged (planted +40% from Sep 1).
 html, tok = upload('sample_A_long_kwh.csv')
 assert 'one row per reading' in html and 'checked' in html
-r = c.post('/score', data={'token': tok, 'unit': 'kwh', 'clock': 'local', 'zip_mode': 'one', 'zip': '02110'})
+r = c.post('/score', data={'token': tok, 'unit': 'kwh', 'clock': 'local', 'zip_mode': 'one', 'zip': '02110', 'price_mode': 'state'})
 t = text(r.text)
 print(t[t.index('Results'):][:1500])
-assert r.status_code == 200 and 'Science_Hall' in t and 'Flagged' in t
+assert r.status_code == 200 and 'Science Hall' in t and 'Flagged' in t and 'Science_Hall' not in t
+assert 'EIA' in t and 'suitable for import' in text(html) and 'January 1, 2023' in text(html) and '12-31-2023' in t
 assert c.post('/score', data={'token': tok, 'unit': 'kwh', 'zip_mode': 'one', 'zip': '02110'}).status_code == 410  # deleted after use
 
 # Sample B: wide, ton-hours, two places via the mapping table.
 html, tok = upload('sample_B_wide_tonhours.csv')
 assert 'one column per building' in html
 r = c.post('/score', data={'token': tok, 'unit': 'ton_hours', 'clock': 'local', 'zip_mode': 'table',
-                           'mapping': 'Boston_Library_tonhours, 02110\nPhoenix_Lab_tonhours, 85004'})
+                           'mapping': 'Library, 02110\nlab, 85004', 'price_mode': 'state'})
 t = text(r.text)
 print('\n' + t[t.index('Results'):][:1500])
 assert r.status_code == 200 and 'Phoenix' in t and 'Boston' in t

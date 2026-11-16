@@ -1,6 +1,8 @@
 """Glue between the upload, the weather lookup and pipeline.run_site(). No web code here."""
 import dataclasses
+import json
 import os
+import re
 import sys
 
 import numpy as np
@@ -11,6 +13,9 @@ from pipeline import Config, KBTU_PER_KWH, UNIT_TO_KBTU, run_site, status_as_of 
 from app.weather import WeatherError, fetch_weather, zip_to_place  # noqa: E402
 
 UNIT_LABELS = {'kwh': 'kWh (electric-equivalent thermal energy)', 'kbtu': 'kBTU', 'ton_hours': 'ton-hours'}
+PRICES_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'data', 'state_prices.json')
+with open(PRICES_PATH) as _f:
+    STATE_PRICES = json.load(_f)
 MIN_SPAN_DAYS = 270
 AS_OF_FLOOR_PCT = 5.0  # materiality floor chosen in the planted-fault tests (README: How far to trust it)
 RESULT_COLS = ['use', 'calib CV(RMSE) %', 'hours above band %', 'verdict', 'note', 'excess ton-hours', 'excess % of cooling']
@@ -37,6 +42,7 @@ def typical_load(long, unit):
 def resolve_zips(long, info, zip_mode, single_zip, mapping_text):
     """Return dict building_id -> 5-digit ZIP, or raise WeatherError with a plain message."""
     buildings = list(info['buildings'])
+    norm = lambda x: re.sub(r'[\s_]+', ' ', str(x)).strip().lower()  # "Science_Hall" == "science hall"
     if zip_mode == 'column' and 'zip' in long.columns:
         m = long.dropna(subset=['zip']).groupby('building_id')['zip'].agg(lambda s: s.mode().iloc[0]).to_dict()
     elif zip_mode == 'table':
@@ -44,7 +50,8 @@ def resolve_zips(long, info, zip_mode, single_zip, mapping_text):
         for line in (mapping_text or '').splitlines():
             parts = [p.strip() for p in line.replace('\t', ',').split(',')]
             if len(parts) >= 2 and parts[0]:
-                m[parts[0]] = parts[1]
+                m[norm(parts[0])] = parts[1]
+        m = {b: m.get(norm(b), '') for b in buildings}
     else:
         m = {b: single_zip for b in buildings}
     missing = [b for b in buildings if not str(m.get(b, '')).strip()]
@@ -53,7 +60,7 @@ def resolve_zips(long, info, zip_mode, single_zip, mapping_text):
     return {b: str(m[b]).strip()[:5] for b in buildings}
 
 
-def score(long, info, unit, clock, zips, shuts_off_winter, price, cop):
+def score(long, info, unit, clock, zips, shuts_off_winter, price_mode, own_price, cop):
     """Run the pipeline once per ZIP. Returns dict with per-building results, per-ZIP checks, and notes."""
     span_days = (info['end'] - info['start']).days
     if span_days < MIN_SPAN_DAYS:
@@ -64,17 +71,27 @@ def score(long, info, unit, clock, zips, shuts_off_winter, price, cop):
         raise ValueError('Not enough history before the last five months to fit a baseline. Upload a longer file.')
     cfg = Config(unit=unit, cal_start=str(cal_start.date()), test_start=str(test_start.date()),
                  zero_run_limit_hrs=10 ** 6 if shuts_off_winter else 24,
-                 plant_cop=cop, price_per_kwh=price if price else 0.0, min_excess_pct=AS_OF_FLOOR_PCT)
-    out_rows, group_checks, notes = [], [], list(info['notes'])
+                 plant_cop=cop, price_per_kwh=0.0, min_excess_pct=AS_OF_FLOOR_PCT)
+    out_rows, group_checks, notes, price_notes = [], [], list(info['notes']), []
     by_zip = {}
     for b, z in zips.items():
         by_zip.setdefault(z, []).append(b)
     for z, blds in by_zip.items():
         place = zip_to_place(z)
+        if price_mode == 'state':
+            cents = STATE_PRICES['cents_per_kwh'].get(place['state'])
+            price = cents / 100 if cents else 0.0
+            if cents:
+                price_notes.append(f"{place['state']}: {cents:.2f} cents/kWh")
+        elif price_mode == 'own':
+            price = own_price
+        else:
+            price = 0.0
+        gcfg = dataclasses.replace(cfg, price_per_kwh=price)
         sub = long[long['building_id'].isin(blds)][['building_id', 'timestamp', 'meter_reading']]
         wx = fetch_weather(round(place['lat'], 4), round(place['lon'], 4),
                            str(sub['timestamp'].min().date()), str(sub['timestamp'].max().date()), clock)
-        res = run_site(sub, wx, cfg, None)
+        res = run_site(sub, wx, gcfg, None)
         last_day = sub['timestamp'].max()
         asof = (status_as_of(res.test, last_day, cfg, UNIT_TO_KBTU[unit]) if len(res.test) else
                 pd.DataFrame(columns=['status', 'first_flagged', 'back_to_normal_since']))
@@ -90,7 +107,7 @@ def score(long, info, unit, clock, zips, shuts_off_winter, price, cop):
             row['as_of'] = asof.loc[b, 'status'] if b in asof.index else 'not scored'
             row['back_to_normal_since'] = asof.loc[b, 'back_to_normal_since'] if b in asof.index else None
             row['cooling vs temperature (corr)'] = None if b not in corr.index else round(float(corr[b]), 2)
-            if r is not None and r.get('cost $') == r.get('cost $') and price and r.get('cost $') is not None:
+            if r is not None and price:
                 row['cost $'] = r.get('cost $')
             out_rows.append(row)
         c = res.checks
@@ -100,4 +117,5 @@ def score(long, info, unit, clock, zips, shuts_off_winter, price, cop):
                              'flagged_hours': c['flagged_hours'], 'median_corr': float(np.nanmedian(corr.values)) if len(corr) else float('nan')})
     results = pd.DataFrame(out_rows)
     return {'results': results, 'checks': group_checks, 'notes': notes, 'cfg': cfg, 'test_start': test_start,
-            'cal_start': cal_start, 'last_day': info['end']}
+            'cal_start': cal_start, 'last_day': info['end'], 'price_mode': price_mode, 'price_notes': price_notes,
+            'own_price': own_price, 'cop': cop}

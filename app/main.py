@@ -99,7 +99,7 @@ async def upload(file: UploadFile = File(...)):
 
 @app.post('/score', response_class=HTMLResponse)
 def score(token: str = Form(...), unit: str = Form(''), clock: str = Form('local'), zip_mode: str = Form('one'),
-          zip: str = Form(''), mapping: str = Form(''), winter: str = Form('no'), price: str = Form(''), cop: str = Form('3.5')):
+          zip: str = Form(''), mapping: str = Form(''), winter: str = Form('no'), price_mode: str = Form('state'), price: str = Form(''), cop: str = Form('3.5')):
     u = UPLOADS.get(token)
     if not u:
         return HTMLResponse(pages.error('That upload expired (files are deleted after 30 minutes). Please upload it again.'), status_code=410)
@@ -114,18 +114,22 @@ def score(token: str = Form(...), unit: str = Form(''), clock: str = Form('local
     if unit not in ('kwh', 'kbtu', 'ton_hours'):
         return back('Please choose the unit of your readings.')
     try:
-        price_v = float(price) if price.strip() else 0.0
+        price_v = float(price) / 100 if price.strip() else 0.0  # the form asks for cents per kWh
         cop_v = float(cop) if cop.strip() else 3.5
     except ValueError:
         return back('Price and COP must be numbers.')
+    if price_mode not in ('state', 'own', 'none'):
+        price_mode = 'none'
+    if price_mode == 'own' and price_v <= 0:
+        return back('Enter your price in cents per kWh, or choose another option.')
     if cop_v < 1:
         return back('COP must be at least 1.')
     try:
         zips = service.resolve_zips(long, info, zip_mode, zip, mapping)
-        out = service.score(long, info, unit, clock, zips, winter == 'yes', price_v, cop_v)
+        out = service.score(long, info, unit, clock, zips, winter == 'yes', price_mode, price_v, cop_v)
     except WeatherError as e:
         return back(f'Weather or ZIP lookup problem: {e}')
     except ValueError as e:
         return HTMLResponse(pages.error(str(e)), status_code=400)
     _drop(token)  # delete the upload once results are produced
-    return HTMLResponse(pages.results(out, price_v))
+    return HTMLResponse(pages.results(out))

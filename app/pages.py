@@ -1,9 +1,30 @@
 """HTML for the Cooling Check app. Same layout ideas as Heat Check, different colors."""
 import html
+import json
+import os
 
 import pandas as pd
 
 E = html.escape
+
+
+def dn(name):
+    """Building name for display: underscores become spaces."""
+    return str(name).replace('_', ' ')
+
+
+def long_dt(ts):
+    """January 1, 2023, 12:00 AM (2023-01-01 00:00)"""
+    ts = pd.Timestamp(ts)
+    return f"{ts.strftime('%B')} {ts.day}, {ts.year}, {ts.hour % 12 or 12}:{ts.minute:02d} {'AM' if ts.hour < 12 else 'PM'} ({ts.strftime('%Y-%m-%d %H:%M')})"
+
+
+def us_date(ts):
+    return pd.Timestamp(ts).strftime('%m-%d-%Y')
+
+
+def hour12(h):
+    return f"{int(h) % 12 or 12}:00 {'AM' if int(h) < 12 else 'PM'}"
 
 HEAD = """<!DOCTYPE html><html lang="en"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
@@ -15,7 +36,7 @@ HEAD = """<!DOCTYPE html><html lang="en"><head>
 *{box-sizing:border-box} body{margin:0;font-family:Inter,system-ui,sans-serif;background:var(--mist);color:var(--body);line-height:1.5}
 header{display:flex;align-items:center;gap:.6rem;background:var(--ink);color:#fff;padding:.7rem 1.25rem;flex-wrap:wrap}
 header img{width:34px;height:34px} header .wordmark{font-weight:700;font-size:1.15rem}
-header .tagline{color:#B8C0E0;font-size:.8rem;margin-left:.5rem;padding-left:.5rem;border-left:1px solid #3a4580}
+header .tagline{color:#B8C0E0;font-size:16pt;margin-left:.5rem;padding-left:.5rem;border-left:1px solid #3a4580}
 header nav{display:flex;gap:.25rem;margin-left:auto;flex-wrap:wrap}
 header nav a{color:#DCE1F5;text-decoration:none;font-weight:600;padding:.4rem .7rem;border-radius:8px}
 header nav a:hover{background:rgba(255,255,255,.1);color:#fff} header nav a[aria-current="page"]{background:#0E7490;color:#fff}
@@ -28,7 +49,8 @@ main{max-width:960px;margin:0 auto;padding:1.5rem} a{color:var(--cyan-text)} h1,
 .ok{border-left:4px solid #15803D;background:#F0FAF3;padding:.6rem .9rem;border-radius:6px;margin-bottom:.8rem}
 table{border-collapse:collapse;width:100%;font-variant-numeric:tabular-nums} th,td{border-bottom:1px solid var(--border);padding:.55rem .65rem;text-align:left;vertical-align:top;overflow-wrap:break-word}
 th{background:#E8ECF8;color:var(--ink);text-transform:uppercase;font-size:.85rem;letter-spacing:.04em} td.num,th.num{text-align:right}
-.badge{display:inline-block;padding:.1rem .5rem;border-radius:999px;font-weight:600;font-size:.85rem}
+.badge{display:inline-block;padding:.25rem .8rem;border-radius:999px;font-weight:600;font-size:.85rem;text-align:center;line-height:1.3}
+th.nw{white-space:nowrap}
 .b-flag{background:#FDE7C7;color:#8A4B00}.b-ok{background:#D9F2E3;color:#14532D}.b-no{background:#E5E7EF;color:#374151}
 label{font-weight:600} .field{margin:.9rem 0} .hint{color:var(--muted);font-size:.9rem} input[type=text],input[type=number],textarea,select{font:inherit;padding:.4rem .5rem;border:1px solid var(--border);border-radius:6px;max-width:100%}
 .stack{display:none} .srow{border:1px solid var(--border);border-radius:10px;padding:12px 14px;margin-bottom:10px}.srow .l{display:flex;justify-content:space-between;gap:.7rem;padding:.15rem 0}.srow .l span:first-child{color:var(--muted)}
@@ -57,15 +79,20 @@ and tells you which buildings are using more than expected, or that it can't jud
 <p><button class="btn" type="submit">Read my file</button></p>
 <p class="hint">Your file is kept only until you see results (or 30 minutes), then deleted. Weather is looked up from a public service using the ZIP codes you give.</p></div>
 <div class="card"><h3>No data handy? Try a sample</h3>
-<p class="hint">Made-up buildings driven by real weather. <strong>Not real meter data.</strong> One of them has extra cooling added from September.</p>
-<a class="btn-outline" href="/samples/sample_A_long_kwh.csv">Sample A (one row per reading, kWh, ZIP 02110 Boston)</a>
-<a class="btn-outline" href="/samples/sample_B_wide_tonhours.csv">Sample B (one column per building, ton-hours, Boston and Phoenix)</a>
-<p class="hint">Sample B has buildings in two places. Choose "Buildings are in different places" and enter: <code>Boston_Library_tonhours, 02110</code> and <code>Phoenix_Lab_tonhours, 85004</code>, one per line.</p></div>
+<p class="hint">The buildings are made up and their cooling is simulated from <strong>real 2023 weather</strong> (Boston, MA, ZIP 02110; Sample B also Phoenix, AZ, ZIP 85004). <strong>Not real meter data.</strong> One building has extra cooling added from October.</p>
+<a class="btn-outline" href="/samples/sample_A_long_kwh.csv">Sample A (one row per reading, kWh, ZIP 02110)</a>
+<a class="btn-outline" href="/samples/sample_B_wide_tonhours.csv">Sample B (one column per building, ton-hours, two cities)</a>
+<p class="hint">Sample B has buildings in two places. Choose "Buildings are in different places" and enter <code>Library, 02110</code> and <code>Lab, 85004</code>, one per line. Choose ton-hours for the unit.</p></div>
 <p class="hint">Portfolio project, not a production system. See <a href="/trust">how far to trust it</a> and <a href="/limits">what it can't see</a>.</p>""", 'check')
 
 
 def error(msg):
     return page(f'<h1>We stopped</h1><div class="warn">{E(msg)}</div><p><a class="btn" href="/">Try another file</a></p>', 'check')
+
+
+with open(os.path.join(os.path.dirname(os.path.abspath(__file__)), 'data', 'state_prices.json')) as _f:
+    PRICE_PERIOD = json.load(_f)['period']
+PRICE_NOTE = "a statewide average, not your utility's rate"
 
 
 def verify(token, info, long, loads, form_error=''):
@@ -76,7 +103,11 @@ def verify(token, info, long, loads, form_error=''):
     else:
         found = (f"one column per building: time = <code>{E(str(cols['time']))}</code>, "
                  f"{len(cols['buildings'])} building columns")
-    notes = ''.join(f'<li>{E(n)}</li>' for n in info['notes']) or '<li>Nothing needed fixing.</li>'
+    if info['notes']:
+        notes_box = ('<div class="notebox"><strong>What we fixed or set aside</strong><ul>'
+                     + ''.join(f'<li>{E(n)}</li>' for n in info['notes']) + '</ul></div>')
+    else:
+        notes_box = '<div class="ok"><strong>This file is suitable for import.</strong></div>'
     hint = info['unit_hint']
     unit_rows = ''
     for u, label in (('kwh', 'kWh'), ('kbtu', 'kBTU'), ('ton_hours', 'ton-hours')):
@@ -90,14 +121,14 @@ def verify(token, info, long, loads, form_error=''):
     zip_opts += (f'<label><input type="radio" name="zip_mode" value="one" {"" if info["has_zip"] else "checked"}> All buildings are in one place</label>'
                  ' &nbsp; ZIP <input type="text" name="zip" size="6" maxlength="5" inputmode="numeric" placeholder="02110"><br>'
                  '<label><input type="radio" name="zip_mode" value="table"> Buildings are in different places</label>')
-    names = ', '.join(E(b) for b in info['buildings'][:12]) + ('...' if len(info['buildings']) > 12 else '')
+    names = ', '.join(E(dn(b)) for b in info['buildings'][:12]) + ('...' if len(info['buildings']) > 12 else '')
     err = f'<div class="warn">{E(form_error)}</div>' if form_error else ''
     return page(f"""
 <h1>Check what we found</h1>{err}
 <div class="card"><h3>Your file</h3>
 <p>We read it as {found}.</p>
-<p>{info['rows']:,} hourly readings, {len(info['buildings'])} buildings ({names}), from {E(str(info['start'])[:16])} to {E(str(info['end'])[:16])}.</p>
-<div class="notebox"><strong>What we fixed or set aside</strong><ul>{notes}</ul></div></div>
+<p>{info['rows']:,} hourly readings, {len(info['buildings'])} buildings ({names}), from {E(long_dt(info['start']))} to {E(long_dt(info['end']))}.</p>
+{notes_box}</div>
 <form action="/score" method="post"><input type="hidden" name="token" value="{E(token)}">
 <div class="card"><h3>1. Units</h3><p class="hint">What unit are your readings in? To help you check, here is what your numbers would mean as tons of cooling in each case.
 A typical large building averages from tens to a few hundred tons; a campus building rarely peaks above a few thousand.</p>
@@ -106,7 +137,7 @@ A typical large building averages from tens to a few hundred tons; a campus buil
 <p class="hint">ZIP code of the <strong>buildings</strong>, not where you live or work. We use it to look up the weather.</p>
 <div class="field">{zip_opts}</div>
 <div class="field"><label for="m">Different places: one line per building, <code>building name, ZIP</code></label><br>
-<textarea id="m" name="mapping" rows="5" cols="44" placeholder="{E(info['buildings'][0])}, 02110"></textarea>
+<textarea id="m" name="mapping" rows="5" cols="44" placeholder="{E(dn(info['buildings'][0]))}, 02110"></textarea>
 <div class="hint">Building names in your file: {names}</div></div></div>
 <div class="card"><h3>3. Time clock</h3><div class="field">
 <label><input type="radio" name="clock" value="local" checked> Local clock time at each building (changes with daylight saving)</label><br>
@@ -116,10 +147,14 @@ A typical large building averages from tens to a few hundred tons; a campus buil
 <label><input type="radio" name="winter" value="no" checked> No, or I'm not sure</label><br>
 <label><input type="radio" name="winter" value="yes"> Yes, long stretches of zero are real</label></div>
 <p class="hint">By default, runs of zero longer than 24 hours are treated as bad data and set aside. Choose Yes in cold climates.</p></div>
-<div class="card"><h3>5. Optional: dollars</h3>
-<p class="hint">Leave blank to report excess cooling only. We never assume a price.</p>
-<div class="field"><label>Electricity price, $ per kWh <input type="number" name="price" step="0.001" min="0" style="width:7rem"></label> &nbsp;
-<label>Chiller plant COP <input type="number" name="cop" step="0.1" min="1" value="3.5" style="width:5rem"></label></div></div>
+<div class="card"><h3>5. Dollars</h3>
+<p class="hint">Dollars are estimates of what the excess cooling cost in electricity. You don't need to look anything up.</p>
+<div class="field"><label><input type="radio" name="price_mode" value="state" checked> Use my state's average commercial electricity price</label>
+<div class="hint" style="margin-left:1.6rem">We find the state from the ZIP code. Source: U.S. EIA, {E(PRICE_PERIOD)} average ({E(PRICE_NOTE)}).</div>
+<label><input type="radio" name="price_mode" value="own"> I know my rate:</label> <input type="number" name="price" step="0.01" min="0" style="width:6rem"> cents per kWh<br>
+<label><input type="radio" name="price_mode" value="none"> Skip dollars</label></div>
+<details><summary>Advanced</summary><div class="field"><label>Chiller plant efficiency (COP) <input type="number" name="cop" step="0.1" min="1" value="3.5" style="width:5rem"></label>
+<div class="hint">How many units of cooling the whole plant makes per unit of electricity. 3.5 is a typical assumption.</div></div></details></div>
 <p><button class="btn" type="submit">Score my buildings</button></p></form>""", 'check')
 
 
@@ -142,12 +177,13 @@ def _fmt(v, kind=''):
     return E(str(v))
 
 
-def results(out, price):
+def results(out):
+    price = out['price_mode'] != 'none'
     r, checks = out['results'], out['checks']
     warns = []
     for c in checks:
         if not c['hottest_hour_plausible']:
-            warns.append(f"At {c['place']} (ZIP {c['zip']}), the hottest hour of the day came out as {c['hottest_hour']}:00. "
+            warns.append(f"At {c['place']} (ZIP {c['zip']}), the hottest hour of the day came out as {hour12(c['hottest_hour'])}. "
                          'It should be mid-afternoon, so the clock or the location may be wrong. Do not trust these results until that is checked.')
         if c['median_corr'] == c['median_corr'] and c['median_corr'] < 0.3:
             warns.append(f"At {c['place']}, cooling barely follows the outdoor temperature (median correlation {c['median_corr']:.2f}). "
@@ -161,7 +197,7 @@ def results(out, price):
                          'or the units are wrong. Go back and check those first.')
     chk_rows = ''.join(
         f"<tr><td>{E(c['place'])} ({E(c['zip'])})</td><td class='num'>{c['buildings']}</td>"
-        f"<td class='num'>{c['hottest_hour']}:00 {'OK' if c['hottest_hour_plausible'] else 'CHECK'}</td>"
+        f"<td class='num'>{hour12(c['hottest_hour'])} {'OK' if c['hottest_hour_plausible'] else 'CHECK'}</td>"
         f"<td class='num'>{'-' if c['median_corr'] != c['median_corr'] else format(c['median_corr'], '.2f')}</td>"
         f"<td class='num'>{int(c['flagged_hours'].values.sum()) if len(c['flagged_hours']) else 0:,}</td></tr>" for c in checks)
     n = r['verdict'].value_counts()
@@ -169,35 +205,42 @@ def results(out, price):
     summary = (f"{int(n.get('Flagged', 0))} flagged, {int(n.get('Within expected range', 0))} within expected range, "
                f"{cant} can't judge.")
     cols = [('building', 'Building', ''), ('place', 'Place', ''), ('verdict', 'Verdict', 'badge'),
-            ('as_of', f"Status on {str(out['last_day'])[:10]}", ''), ('hours above band %', 'Hours above band', 'pct'),
+            ('as_of', f"Status on {us_date(out['last_day'])}", ''), ('hours above band %', 'Hours above band', 'pct'),
             ('excess % of cooling', 'Excess, % of its cooling', 'pct'), ('excess ton-hours', 'Excess ton-hours', 'int')]
     if price:
         cols.append(('cost $', 'Potential cost $', 'int'))
     def cell(row, k, kind):
-        v = row.get(k)
+        v = dn(row.get(k)) if k == 'building' else row.get(k)
         return _badge(v) if kind == 'badge' else _fmt(v, kind)
     head = ''.join(f"<th class='{'num' if kind in ('pct', 'int') else ''}'>{E(l)}</th>" for _, l, kind in cols)
     body = ''.join('<tr>' + ''.join(f"<td class='{'num' if kind in ('pct', 'int') else ''}'>{cell(row, k, kind)}</td>"
                                     for k, _, kind in cols) + '</tr>' for _, row in r.iterrows())
-    cards = ''.join('<div class="srow"><strong>' + E(str(row['building'])) + '</strong>' + ''.join(
+    cards = ''.join('<div class="srow"><strong>' + E(dn(row['building'])) + '</strong>' + ''.join(
         f"<div class='l'><span>{E(l)}</span><span>{cell(row, k, kind)}</span></div>" for k, l, kind in cols[1:]) +
         (f"<div class='hint'>{E(str(row['note']))}</div>" if _has(row.get('note')) else '') + '</div>' for _, row in r.iterrows())
-    notes = ''.join(f"<div class='hint'><strong>{E(str(row['building']))}:</strong> {E(str(row['note']))}</div>"
+    notes = ''.join(f"<div class='hint'><strong>{E(dn(row['building']))}:</strong> {E(str(row['note']))}</div>"
                     for _, row in r.iterrows() if _has(row.get('note')))
+    if price:
+        src = ('your own rate' if out['price_mode'] == 'own' else 'average commercial price by state, U.S. EIA, '
+               + PRICE_PERIOD + ' (' + '; '.join(out['price_notes']) + ')')
+        cost_note = (f'<div class="notebox"><strong>How dollars were estimated:</strong> excess cooling above the band, converted to electricity '
+                     f'with a plant COP of {out["cop"]:g}, priced at {E(src)}. They are potential savings, not realized ones.</div>')
+    else:
+        cost_note = ''
     wtxt = ''.join(f'<div class="warn">{E(w)}</div>' for w in warns) or '<div class="ok">Clock, weather and weather-following checks passed for every location.</div>'
     return page(f"""
 <h1>Results</h1><p><strong>{E(summary)}</strong></p>
 <div class="card"><h3>Checks before you trust this</h3>{wtxt}
-<table><thead><tr><th>Location</th><th class="num">Buildings</th><th class="num">Hottest hour</th><th class="num">Cooling vs temperature</th><th class="num">Hours set aside as bad data</th></tr></thead><tbody>{chk_rows}</tbody></table></div>
+<table><thead><tr><th>Location</th><th class="num">Buildings</th><th class="num nw">Hottest hour</th><th class="num">Cooling vs temperature</th><th class="num">Hours set aside<br>as bad data</th></tr></thead><tbody>{chk_rows}</tbody></table></div>
 <div class="card"><h3>Buildings</h3>
-<div class="tw"><table><thead><tr>{head}</tr></thead><tbody>{body}</tbody></table></div><div class="stack">{cards}</div>
+{cost_note}<div class="tw"><table><thead><tr>{head}</tr></thead><tbody>{body}</tbody></table></div><div class="stack">{cards}</div>
 <div style="margin-top:.8rem">{notes}</div></div>
 <div class="card"><h3>How to read this</h3><ul>
 <li><strong>Flagged</strong>: more than 10% of the last five months' hours were above the 90% band. Excess is only the part above the band's upper edge, so it is conservative.</li>
-<li><strong>Status on {E(str(out['last_day'])[:10])}</strong> looks at the most recent weeks only: "Flagged, ongoing", "Was flagged, back to normal", or "Within expected range".</li>
+<li><strong>Status on {E(us_date(out['last_day']))}</strong> looks at the most recent weeks only: "Flagged, ongoing", "Was flagged, back to normal", or "Within expected range".</li>
 <li><strong>Can't judge</strong> means the model wasn't accurate enough on this building (or there wasn't enough clean data), so we don't guess.</li>
 <li>Excess cooling is <strong>potential</strong>, not realized: a meter change or a legitimate change in use looks the same. Check the meter first.</li></ul>
-<p class="hint">Test period {E(str(out['test_start'])[:10])} onward; the month before was used to calibrate the band; earlier data to fit the baseline.</p></div>
+<p class="hint">Test period {E(us_date(out['test_start']))} onward; the month before was used to calibrate the band; earlier data to fit the baseline.</p></div>
 <p><a class="btn" href="/">Check another file</a> <a class="btn-outline" href="/trust">How far to trust it</a></p>""", 'check')
 
 
@@ -224,6 +267,6 @@ def limits():
 <li><strong>Cold-climate shutdowns, unless you tell us.</strong> Long runs of zero are treated as bad data by default.</li>
 <li><strong>Calendars and occupancy.</strong> A semester break or a new use can look like a fault.</li>
 <li><strong>Small faults in the cool season.</strong> The band is a fixed width calibrated on a single month.</li>
-<li><strong>Dollars and carbon.</strong> We only report dollars if you give a price, and we use a plant COP you can change (default 3.5).</li>
+<li><strong>Dollars and carbon.</strong> Dollars use a statewide average price unless you give your own rate, and a plant COP you can change (default 3.5). Carbon is not estimated.</li>
 <li><strong>Anything outside US ZIP codes</strong>, or data that isn't hourly.</li></ul>
 <p>This is a portfolio project, not a production system.</p></div>""", 'limits')
