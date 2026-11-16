@@ -106,6 +106,7 @@ There are no confirmed real faults in this data, so I tested the method by **pla
 1. Download `train.csv`, `weather_train.csv`, and `building_metadata.csv` from the [ASHRAE Great Energy Predictor III competition](https://www.kaggle.com/c/ashrae-energy-prediction) into a folder named `ashrae-energy-prediction/` next to the notebook.
 2. Install the package versions used for the committed outputs (Python 3.12): `pip install -r requirements.txt`
 3. Open `cooling_check.ipynb` and run it top to bottom.
+4. Optional checks: `python tests/reproduce_orlando.py` (needs the Kaggle files). `python scripts/compare_sites.py <folder>` and `python scripts/as_of_test.py <folder>` need the Building Data Genome 2 files `metadata.csv`, `chilledwater_raw.csv` and `weather.csv` in one folder.
 
 ## Data source
 
