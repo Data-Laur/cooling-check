@@ -30,6 +30,8 @@ class Config:
     trust_cv_rmse_max: float = 30.0   # ASHRAE Guideline 14 hourly accuracy bar
     flag_above_pct: float = 10.0      # our choice: 2x the ~5% of hours expected above a 90% band
     min_hours: int = 168              # need a week of clean data in each period to judge a building
+    window_days: int = 7              # as-of scoring: rolling window for "share of hours above the band"
+    min_episode_days: int = 3         # as-of scoring: window share must stay above flag_above_pct this many days in a row
     plant_cop: float = 3.5            # assumption: whole chilled-water plant
     price_per_kwh: float = 0.11       # assumption: Florida commercial, ~11-12 cents
     co2_kg_per_kwh: float = 0.37      # assumption: EPA eGRID2022 Florida (FRCC)
@@ -231,3 +233,42 @@ def run_site(meters, weather, cfg, metadata=None):
         'flagged_hours': data.groupby(['building_id', 'flag']).size().unstack(fill_value=0).drop(columns='', errors='ignore'),
     }
     return SiteResult(impact, totals, pd.DataFrame(sens), checks, tp, halfwidth)
+
+
+def hot_days(building_test, cfg):
+    """Per day: share of the last window_days of hours above the band, and whether it is past the flag line.
+    building_test needs columns timestamp, above. Windows with under half their hours are left blank."""
+    daily = building_test.set_index('timestamp')['above'].astype(float).resample('D').agg(['sum', 'count'])
+    n = daily['count'].rolling(cfg.window_days, min_periods=1).sum()
+    a = daily['sum'].rolling(cfg.window_days, min_periods=1).sum()
+    share = (100 * a / n).where(n >= 12 * cfg.window_days)
+    return share, (share > cfg.flag_above_pct)
+
+
+def status_as_of(test, as_of, cfg, to_kbtu):
+    """Judge each building using only data up to and including the day `as_of`.
+    test: SiteResult.test (judged buildings, with columns building_id, timestamp, above, excess_kbtu).
+    Returns one row per building: 'Flagged, ongoing' | 'Was flagged, back to normal' | 'Within expected range'.
+    An episode = the rolling share above the band stays over the flag line for min_episode_days days in a row."""
+    end = pd.Timestamp(as_of).normalize() + pd.Timedelta(days=1)
+    rows = []
+    for b, g in test[test['timestamp'] < end].groupby('building_id'):
+        _, hot = hot_days(g, cfg)
+        run_id = (hot != hot.shift()).cumsum()
+        runs = [(grp.index[0], grp.index[-1], len(grp)) for _, grp in hot[hot].groupby(run_id[hot])]
+        runs = [r for r in runs if r[2] >= cfg.min_episode_days]
+        last_day = hot.index[-1]
+        row = {'building_id': b, 'status': 'Within expected range', 'first_flagged': None, 'back_to_normal_since': None,
+               'excess ton-hours': 0.0}
+        if runs:
+            first = runs[0][0] - pd.Timedelta(days=cfg.window_days - 1)
+            row['first_flagged'] = runs[0][0].date()
+            row['excess ton-hours'] = round(g[g['timestamp'] >= first]['excess_kbtu'].sum() / KBTU_PER_TON_HOUR)
+            if runs[-1][1] == last_day and hot.iloc[-1]:
+                row['status'] = 'Flagged, ongoing'
+            else:
+                row['status'] = 'Was flagged, back to normal'
+                row['back_to_normal_since'] = (runs[-1][1] + pd.Timedelta(days=1)).date()
+        rows.append(row)
+    cols = ['building_id', 'status', 'first_flagged', 'back_to_normal_since', 'excess ton-hours']
+    return pd.DataFrame(rows, columns=cols).set_index('building_id')
