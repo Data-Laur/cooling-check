@@ -46,3 +46,4 @@ ashrae-energy-prediction/
 # generated test outputs
 as_of_results_*.csv
 planted_anomaly_results.csv
+DEMO_SCRIPT.md
