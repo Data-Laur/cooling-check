@@ -35,6 +35,8 @@ HEAD = """<!DOCTYPE html><html lang="en"><head>
 :root{--ink:#1D2459;--cyan:#0891B2;--cyan-text:#0E7490;--amber:#D97706;--mist:#F3F5FB;--card:#fff;--border:#D9DEEC;--body:#1f2937;--muted:#566079;}
 *{box-sizing:border-box} body{margin:0;font-family:Inter,system-ui,sans-serif;background:var(--mist);color:var(--body);line-height:1.5}
 header{display:flex;align-items:center;gap:.6rem;background:var(--ink);color:#fff;padding:.7rem 1.25rem;flex-wrap:wrap}
+header .brand{display:flex;align-items:center;gap:.6rem;color:#fff;text-decoration:none}
+header .brand:hover .wordmark{text-decoration:underline}
 header img{width:34px;height:34px} header .wordmark{font-weight:700;font-size:1.15rem}
 header .tagline{color:#B8C0E0;font-size:16pt;margin-left:.5rem;padding-left:.5rem;border-left:1px solid #3a4580}
 header nav{display:flex;gap:.25rem;margin-left:auto;flex-wrap:wrap}
@@ -56,7 +58,7 @@ label{font-weight:600} .field{margin:.9rem 0} .hint{color:var(--muted);font-size
 .stack{display:none} .srow{border:1px solid var(--border);border-radius:10px;padding:12px 14px;margin-bottom:10px}.srow .l{display:flex;justify-content:space-between;gap:.7rem;padding:.15rem 0}.srow .l span:first-child{color:var(--muted)}
 @media(max-width:720px){header .tagline{display:none}.tw{display:none}.stack{display:block}}
 </style></head><body>
-<header><img src="/static/logo.svg" alt=""><span class="wordmark">Cooling Check</span>
+<header><a class="brand" href="/" aria-label="Cooling Check home"><img src="/static/logo.svg" alt=""><span class="wordmark">Cooling Check</span></a>
 <span class="tagline">Is a building using more cooling than the weather explains?</span>
 <nav aria-label="Main"><a href="/" {c}>Check your data</a><a href="/trust" {t}>How far to trust it</a><a href="/limits" {l}>What we can't see</a></nav></header><main>"""
 FOOT = "</main></body></html>"
