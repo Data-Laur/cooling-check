@@ -1,7 +1,7 @@
 """Make the two REAL sample files for the app from the Building Data Genome 2 (BDG2) raw chilled-water meter data.
 Subset only: the 7 largest buildings per site (>= 4,000 hourly readings in 2016), 2016 only, long format, kWh.
 BDG2: Miller et al. (2020), Scientific Data 7:368, https://doi.org/10.1038/s41597-020-00712-x
-Data licensed CC BY 4.0 (Zenodo 10.5281/zenodo.3887306); this subset is shared with attribution, changes noted.
+Zenodo release CC BY 4.0, GitHub repo LICENSE CC BY-SA 4.0: this subset is shared under CC BY-SA 4.0 with attribution, changes noted.
     python scripts/make_real_samples.py path/to/bdg2_folder"""
 import os
 import sys

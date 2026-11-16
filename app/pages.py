@@ -91,8 +91,9 @@ and tells you which buildings are using more than expected, or that it can't jud
 <a class="btn-outline" href="/samples/sample_A_long_kwh.csv">Sample A (one row per reading, kWh, ZIP 02110)</a>
 <a class="btn-outline" href="/samples/sample_B_wide_tonhours.csv">Sample B (one column per building, ton-hours, two cities)</a>
 <p class="hint">Sample B has buildings in two places. Choose "Buildings are in different places" and enter <code>Library, 02110</code> and <code>Lab, 85004</code>, one per line. Choose ton-hours for the unit.</p>
-<p class="hint">Samples C and D are a subset of data from Miller et al. (2020), <em>Scientific Data</em> 7:368, licensed
-<a href="https://creativecommons.org/licenses/by/4.0/">CC BY 4.0</a>. Changes: 2016 only, 7 buildings per site, reformatted to CSV.</p></div>
+<p class="hint">Samples C and D are a subset of data from Miller et al. (2020), <em>Scientific Data</em> 7:368 (<a href="https://doi.org/10.1038/s41597-020-00712-x">doi:10.1038/s41597-020-00712-x</a>).
+The authors' Zenodo release is licensed <a href="https://creativecommons.org/licenses/by/4.0/">CC BY 4.0</a> and their GitHub repository carries <a href="https://creativecommons.org/licenses/by-sa/4.0/">CC BY-SA 4.0</a>, so this subset is shared under CC BY-SA 4.0, which satisfies both.
+Changes: 2016 only, 7 buildings per site, reformatted to CSV.</p></div>
 <p class="hint">Portfolio project, not a production system. See <a href="/trust">how far to trust it</a> and <a href="/limits">what it can't see</a>.</p>""", 'check')
 
 
