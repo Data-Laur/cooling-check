@@ -351,7 +351,7 @@ def results_body(out, heading='Results', buttons=True):
 <p class="hint">Test period {E(us_date(out['test_start']))} onward; the month before was used to calibrate the band; earlier data to fit the baseline.</p></div>
 """ + ('<p><a class="btn" href="/upload">Check another file</a> <a class="btn-outline" href="/method#trust">How far to trust it</a></p>' if buttons else '')
             + f'<div id="detail-view"></div><script src="https://cdn.plot.ly/plotly-2.35.2.min.js" charset="utf-8"></script>'
-              f'<script>window.DETAIL = {detail};</script><script src="/static/detail.js"></script>')
+              f'<script>window.DETAIL = {detail};</script><script src="/static/detail.js?v=3"></script>')
 
 
 def method():

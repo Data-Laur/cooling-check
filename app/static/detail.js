@@ -1,7 +1,7 @@
 /* Building detail view: week by week charts. Data comes from window.DETAIL (built by app/detail.py). */
 (function () {
   var D = window.DETAIL || {};
-  var C = { actual: '#D97706', expected: '#0E7490', band: 'rgba(8,145,178,0.16)', ink: '#1D2459', grid: '#E6E9F2' };
+  var C = { actual: '#D97706', cool: '#0E7490', expected: '#0E7490', band: 'rgba(8,145,178,0.16)', ink: '#1D2459', grid: '#E6E9F2' };
   var cur = { id: null, week: 0 };
   var MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
   var DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
@@ -84,7 +84,7 @@
     }
     var L = base(undefined, 'Extra cooling (ton-hours)'); L.margin.t = 40; L.shapes = shapes; L.annotations = ann;
     L.xaxis = { type: 'date', tickformat: '%b %-d', automargin: true, gridcolor: C.grid };
-    var bars = { x: d.days, y: d.over, type: 'bar', marker: { color: C.actual }, name: 'Above the band', hovertemplate: '%{x|%b %-d}: %{y:,} ton-hours above the band<extra></extra>' };
+    var bars = { x: d.days, y: d.over, type: 'bar', marker: { color: C.cool }, name: 'Above the band', hovertemplate: '%{x|%b %-d}: %{y:,} ton-hours above the band<extra></extra>' };
     Plotly.newPlot('chart-daily', [bars], L, { displayModeBar: false, responsive: true });
     var el = document.getElementById('chart-daily');
     el.on('plotly_click', function (ev) {
@@ -100,7 +100,7 @@
     var L = base('Hour of day', undefined);
     L.xaxis = { title: { text: 'Hour of day', standoff: 14 }, tickmode: 'array', tickvals: tv, ticktext: tv.map(ap), automargin: true };
     L.margin = { t: 20, r: 16, b: 60, l: 64 }; L.yaxis = { autorange: 'reversed', automargin: true };
-    Plotly.newPlot('chart-heat', [{ z: b.heat, x: hours, y: DAYS, type: 'heatmap', colorscale: [[0, '#F3F5FB'], [1, C.actual]], colorbar: { title: 'ton-hours' },
+    Plotly.newPlot('chart-heat', [{ z: b.heat, x: hours, y: DAYS, type: 'heatmap', colorscale: [[0, '#F1F8FB'], [0.5, '#4BAEC8'], [1, '#0B2F4F']], colorbar: { title: 'ton-hours' },
       hovertemplate: '%{y} %{x}:00: %{z:,} ton-hours above the band<extra></extra>' }], L, { displayModeBar: false, responsive: true });
   }
   function drawMonth(b) {
