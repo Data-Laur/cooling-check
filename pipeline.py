@@ -30,6 +30,8 @@ class Config:
     trust_cv_rmse_max: float = 30.0   # ASHRAE Guideline 14 hourly accuracy bar
     flag_above_pct: float = 10.0      # our choice: 2x the ~5% of hours expected above a 90% band
     min_hours: int = 168              # need a week of clean data in each period to judge a building
+    band: str = 'absolute'            # 'absolute' = one fixed width per building (the notebook); 'relative' = width scales with predicted load
+    rel_floor_frac: float = 0.10      # relative band: predictions below this fraction of the building's calibration mean use that value as the scale
     min_excess_pct: float = 0.0       # as-of scoring: window must also have excess above the band of at least this % of its cooling
     window_days: int = 7              # as-of scoring: rolling window for "share of hours above the band"
     min_episode_days: int = 3         # as-of scoring: window share must stay above flag_above_pct this many days in a row
@@ -135,6 +137,20 @@ def conformal_halfwidths(fitted, cal_df, coverage=0.90):
     return pd.Series(halfwidths)
 
 
+def conformal_relative(fitted, cal_df, coverage=0.90, floor_frac=0.10):
+    """Like conformal_halfwidths, but on error as a share of the prediction, so the band scales with load.
+    Returns per building: q (relative half-width) and floor (the smallest prediction value used as the scale)."""
+    pred = predict_hybrid(fitted, cal_df)
+    out = {}
+    for b_id, g in cal_df.groupby('building_id'):
+        floor = floor_frac * pred[g.index].mean()
+        scale = np.maximum(pred[g.index], floor)
+        e = ((g['meter_reading'] - pred[g.index]).abs() / scale)
+        n = len(e)
+        out[b_id] = {'q': e.quantile(min(1.0, np.ceil((n + 1) * coverage) / n)), 'floor': floor}
+    return pd.DataFrame(out).T
+
+
 def to_impact(excess_kbtu, cfg):
     electricity_kwh = excess_kbtu / KBTU_PER_KWH / cfg.plant_cop
     return electricity_kwh, electricity_kwh * cfg.price_per_kwh, electricity_kwh * cfg.co2_kg_per_kwh / 1000
@@ -173,13 +189,19 @@ def run_site(meters, weather, cfg, metadata=None):
     hybrid_fit = fit_hybrid(fit_part[fit_part['building_id'].isin(judged)])
     cal_j = cal_part[cal_part['building_id'].isin(judged)]
     halfwidth = conformal_halfwidths(hybrid_fit, cal_j, cfg.coverage)
+    rel = conformal_relative(hybrid_fit, cal_j, cfg.coverage, cfg.rel_floor_frac) if cfg.band == 'relative' else None
     cal_pred = predict_hybrid(hybrid_fit, cal_j)
     cal_cv = {b: cv_rmse(g['meter_reading'], cal_pred[g.index]) for b, g in cal_j.groupby('building_id')}
 
     tp = test_part[test_part['building_id'].isin(judged)].copy()
     tp['pred'] = predict_hybrid(hybrid_fit, tp)
-    tp['lower'] = tp['pred'] - tp['building_id'].map(halfwidth)
-    tp['upper'] = tp['pred'] + tp['building_id'].map(halfwidth)
+    if rel is None:
+        hw = tp['building_id'].map(halfwidth)
+    else:
+        hw = tp['building_id'].map(rel['q']) * np.maximum(tp['pred'], tp['building_id'].map(rel['floor']))
+        halfwidth = rel['q']
+    tp['lower'] = tp['pred'] - hw
+    tp['upper'] = tp['pred'] + hw
     tp['above'] = tp['meter_reading'] > tp['upper']
     tp['excess_kbtu'] = (tp['meter_reading'] - tp['upper']).clip(lower=0) * to_kbtu
 

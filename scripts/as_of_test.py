@@ -32,12 +32,13 @@ N_BUILDINGS, MIN_HOURS = 7, 4000
 ap = argparse.ArgumentParser()
 ap.add_argument('bdg2_dir')
 ap.add_argument('--year', type=int, default=2016)
+ap.add_argument('--band', default='absolute', choices=['absolute', 'relative'])
 ap.add_argument('--min-excess', type=float, nargs='+', default=[0.0])
 a = ap.parse_args()
 Y = a.year
 ONSETS = [pd.Timestamp(f'{Y}-09-01'), pd.Timestamp(f'{Y}-10-15')]
 CHECKS = pd.to_datetime([f'{Y}-08-31', f'{Y}-09-30', f'{Y}-10-31', f'{Y}-11-30', f'{Y}-12-31'])
-base_cfg = Config(unit='kwh', cal_start=f'{Y}-07-01', test_start=f'{Y}-08-01')
+base_cfg = Config(unit='kwh', cal_start=f'{Y}-07-01', test_start=f'{Y}-08-01', band=a.band)
 
 d = a.bdg2_dir
 meta = pd.read_csv(f'{d}/metadata.csv')
@@ -115,8 +116,9 @@ for floor in a.min_excess:
 out = pd.DataFrame(rows)
 untouched = pd.DataFrame(untouched_rows)
 scored = out[out['clean_untouched']].copy()
-out.to_csv(os.path.join(ROOT, f'as_of_results_{Y}.csv'), index=False)
+out.to_csv(os.path.join(ROOT, f'as_of_results_{Y}_{a.band}.csv'), index=False)
 
+print(f'\n=== band: {a.band}, year {Y} ===')
 print(f'\nUNTOUCHED data ({Y}): judged buildings with any episode, by materiality floor')
 u = untouched.groupby('floor %').agg(judged=('building', 'size'), with_episode=('ever flagged', 'sum'),
                                      median_excess_ton_hours_of_those=('excess ton-hours Dec 31', 'median'))

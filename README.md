@@ -68,16 +68,30 @@ I cleaned the raw Kaggle files myself, then checked my work against the dataset 
 - **Units:** the Kaggle chilled water readings equal the authors' kWh values times 3.412 in every hour, so they are in kBTU.
 - **Time zones:** the Kaggle weather is in UTC, and this site's local time is a fixed UTC minus 5 hours with no daylight saving. My first fix applied daylight saving and was one hour off in summer; the check caught it, and every section was re-run after the correction.
 
+## How far to trust it
+
+There are no confirmed real faults in this data, so I tested the method by **planting faults**: multiplying a building's readings by 1.10, 1.25 or 1.50 from a chosen date, then checking what the tool says on month-end dates (`scripts/as_of_test.py`). I also ran the same, unchanged pipeline on three other sites (Tempe AZ, Princeton NJ, Austin TX) from the same dataset (`scripts/compare_sites.py`).
+
+- **Reproducible:** `tests/reproduce_orlando.py` checks that the reusable pipeline gives the notebook's exact verdicts and totals. Run through the dataset authors' own files, Orlando gives the same verdicts.
+- **Other sites:** the tool judged 5 of 7 buildings in Orlando, 6 of 7 in Tempe, 2 of 7 in Princeton and 3 of 7 in Austin. The rest were marked "Can't judge" rather than guessed.
+- **Planted faults, checked at month end** (16 judged buildings in 2016; 19 in 2017, which the rule never saw): a +50% fault was flagged in about 55% of checks while it was running, +25% in about 25%, +10% rarely. The 2017 results were close to 2016 (+50%: 53%, +25%: 23%, +10%: 7%).
+- **After a fix:** about 54 to 62% of the time the tool said "was flagged, back to normal"; about 5 to 8% of the time it still said "ongoing".
+- **Quiet buildings:** with the 5% materiality floor, about a quarter of unmodified judged buildings still showed an alert episode. I cannot say how many are false alarms, because there are no labels.
+
+**What this does not show:** a planted fault is a steady percentage increase, not a real fault; the buildings come from four university campuses; the thresholds were tuned on 2016 after seeing results.
+
 ## Limits
 
-- **Small scope:** one site, seven buildings, one year (2016). Results may not generalize to other climates or building types.
+- **Small scope:** the notebook covers one site, seven buildings, one year. The extra tests use four university sites, and only 2 to 6 of 7 buildings per site could be judged, so results may not generalize to other climates or building types.
 - **Simple physics:** a single wet-bulb change-point model. It fits poorly when a building has several operating regimes in one year.
 - **Not a forecast:** the model uses each hour's measured weather, so it judges hours after they happen.
 - **No calendar data:** the academic calendar (for example, summer break) is not modeled. This likely explains building 7's elevated fall readings; the trust gate kept it from being flagged.
 - **Assumptions in dollars and CO2:** COP 3.5, a recent Florida commercial electricity price of $0.11/kWh applied to 2016 data, and a Florida grid factor of 0.37 kg CO2/kWh (EPA eGRID2022).
 - **Thresholds I chose:** the stuck-meter rule (below 10% of normal for 7+ days), the flag rule (more than 10% of hours above the band), and the drift alert (more than 15% above expected for 3+ days) are my own choices, not published standards.
 - **Minor leakage:** the cleaning rules look slightly ahead in time, and some design choices were made after seeing the full year. A live system would flag bad data with a delay.
-- **Bands:** one fixed, symmetric width per building, calibrated on a single month.
+- **Bands:** one fixed, symmetric width per building, calibrated on a single month (July). Because the band does not shrink in the cool season, a +25% fault is about 1.1 times the band width in August but 0.3 times in December, so relative faults are hard to see in low-load months. I tried a band that scales with load; at the same alert level it was not better, so I kept the fixed band.
+- **Zero-run rule:** dropping zero runs longer than 24 hours assumes a warm climate. In a cold climate, winter zeros may be a chiller that is off, not bad data.
+- **Flag rule is slow:** the notebook's rule needs more than 10% of the whole test period above the band. The as-of scoring (`status_as_of` in `pipeline.py`) uses a rolling 7-day window instead.
 
 ## What production would need
 

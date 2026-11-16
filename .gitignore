@@ -42,3 +42,7 @@ ehthumbs.db
 LEARNING_LOG.md
 Cooling_Check_Project Outline_Checklist.pdf
 ashrae-energy-prediction/
+
+# generated test outputs
+as_of_results_*.csv
+planted_anomaly_results.csv
