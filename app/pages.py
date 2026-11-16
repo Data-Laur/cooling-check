@@ -188,6 +188,33 @@ def _fmt(v, kind=''):
     return E(str(v))
 
 
+def _hints(r):
+    items = ''
+    for _, row in r.iterrows():
+        if row.get('verdict') != 'Flagged':
+            continue
+        h = row.get('hint')
+        lines = ['<li><strong>Check the meter first.</strong> A meter change or recalibration looks the same as extra cooling.</li>']
+        if not h:
+            lines.append('<li>No clear start date or timing pattern stood out.</li>')
+        else:
+            o = pd.Timestamp(h['onset'])
+            lines.append(f"<li>The extra cooling began around <strong>{o.strftime('%B')} {o.day}, {o.year}</strong>. Ask what changed then: controls, setpoints, tenants, equipment.</li>")
+            pct = lambda x: f'{100 * x:.0f}%'
+            if h['pattern'] == 'after_hours':
+                lines.append(f"<li>Most of the extra ({pct(h['excess_after_hours_share'])}) is on nights and weekends, against {pct(h['normal_after_hours_share'])} of normal use. Check schedules, setpoint setbacks and after-hours operation.</li>")
+            elif h['pattern'] == 'occupied_hours':
+                lines.append(f"<li>Most of the extra is on weekdays between 7 AM and 7 PM (only {pct(h['excess_after_hours_share'])} is after hours, against {pct(h['normal_after_hours_share'])} of normal use). Check what runs during the day: setpoints, ventilation, occupancy changes.</li>")
+            else:
+                lines.append('<li>The extra is spread across the day and the week, so timing does not narrow it down.</li>')
+        items += f"<h4 style='margin:.8rem 0 .2rem'>{E(dn(row['building']))}</h4><ul>{''.join(lines)}</ul>"
+    if not items:
+        return ''
+    return ('<div class="card"><h3>Where to look first</h3><p class="hint">Hints from when and how the extra cooling shows up, '
+            '<strong>not a diagnosis</strong>. In planted-fault tests the start date landed within a week about 60% of the time, and the '
+            'timing pattern was named correctly 80 to 98% of the time. See <a href="/trust">how far to trust it</a>.</p>' + items + '</div>')
+
+
 def results(out):
     price = out['price_mode'] != 'none'
     r, checks = out['results'], out['checks']
@@ -238,6 +265,7 @@ def results(out):
                      f'with a plant COP of {out["cop"]:g}, priced at {E(src)}. They are potential savings, not realized ones.</div>')
     else:
         cost_note = ''
+    hints_html = _hints(r)
     wtxt = ''.join(f'<div class="warn">{E(w)}</div>' for w in warns) or '<div class="ok">Clock, weather and weather-following checks passed for every location.</div>'
     return page(f"""
 <h1>Results</h1><p><strong>{E(summary)}</strong></p>
@@ -246,8 +274,9 @@ def results(out):
 <div class="card"><h3>Buildings</h3>
 {cost_note}<div class="tw"><table><thead><tr>{head}</tr></thead><tbody>{body}</tbody></table></div><div class="stack">{cards}</div>
 <div style="margin-top:.8rem">{notes}</div></div>
+{hints_html}
 <div class="card"><h3>How to read this</h3><ul>
-<li><strong>Flagged</strong>: more than 10% of the last five months' hours were above the 90% band <em>and</em> the excess is at least 5% of the building's cooling. Excess is only the part above the band's upper edge, so it is conservative.</li>
+<li><strong>Flagged</strong>: more than 10% of the hours in the test period (about the last five months) were above the 90% band <em>and</em> the excess is at least 5% of the building's cooling. Excess is only the part above the band's upper edge, so it is conservative.</li>
 <li><strong>Status on {E(us_date(out['last_day']))}</strong> looks at the most recent weeks only: "Flagged, ongoing", "Was flagged, back to normal", or "Within expected range".</li>
 <li><strong>Can't judge</strong> means the model wasn't accurate enough on this building (or there wasn't enough clean data), so we don't guess.</li>
 <li>Excess cooling is <strong>potential</strong>, not realized: a meter change or a legitimate change in use looks the same. Check the meter first.</li></ul>
@@ -264,6 +293,7 @@ def trust():
 <p class="hint">16 judged buildings in 2016, 19 in 2017, from four university campuses. After a planted fix, about 54 to 62% of the time the tool said "was flagged, back to normal".</p></div>
 <div class="card"><h3>What this does and doesn't show</h3><ul>
 <li>It catches big, long faults and misses small or late ones, especially in the cool season: the 90% band is a fixed width, so a +25% fault is about 1.1 times the band in August and 0.3 times in December.</li>
+<li><strong>"Where to look first" hints:</strong> tested with faults planted at known dates and times. The start date was within a week of the truth about 60% of the time (median error 0 to 2 days). The pattern (nights and weekends, weekday daytime, or all day) was named correctly about 80 to 98% of the time. The tool cannot tell a faulty valve from a changed setpoint or a meter change, and when a fault ends it often cannot say so reliably.</li>
 <li>With the 5% materiality floor, about a quarter of unmodified buildings still showed an alert episode. With no labels we can't say how many are false alarms.</li>
 <li>A planted fault is a steady percentage increase, not a real fault. Thresholds were tuned on 2016 after seeing results.</li>
 <li>On four sites, 2 to 6 of 7 buildings could be judged; the rest are marked "Can't judge" instead of guessed.</li></ul>

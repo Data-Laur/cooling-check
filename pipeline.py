@@ -307,3 +307,49 @@ def status_as_of(test, as_of, cfg, to_kbtu):
         rows.append(row)
     cols = ['building_id', 'status', 'first_flagged', 'back_to_normal_since', 'excess ton-hours']
     return pd.DataFrame(rows, columns=cols).set_index('building_id')
+
+
+OCCUPIED_START_HOUR, OCCUPIED_END_HOUR = 7, 19  # weekdays 7:00 to 18:59 count as occupied hours (our choice)
+
+
+def describe_excess(b, margin=0.01, min_days=7, min_excess=0.05, pattern_gap=0.15):
+    """When did a building start using more than expected, and when in the week does the extra happen?
+    b: one building's test hours with columns timestamp, meter_reading, pred, upper (time-ordered, any units).
+    Finds the stretch of days with the most cumulative excess ABOVE THE BAND: daily (reading above the band's upper
+    edge) / prediction, minus a small margin, then the best contiguous run of days (largest-sum run). The first
+    version used the gap to the prediction, which picked up ordinary drift in normal buildings (post-hoc change,
+    see LEARNING_LOG 16). A hint, not a diagnosis.
+    Returns None if no stretch of at least min_days has average excess of at least min_excess."""
+    t = b.set_index('timestamp')
+    daily = pd.DataFrame({'res': (t['meter_reading'] - t['pred']).resample('D').sum(),
+                          'ex': (t['meter_reading'] - t['upper']).clip(lower=0).resample('D').sum(),
+                          'pred': t['pred'].resample('D').sum(), 'n': t['pred'].resample('D').count()})
+    daily = daily[daily['n'] >= 12]
+    if len(daily) < min_days:
+        return None
+    d = (daily['ex'] / daily['pred']).values - margin
+    best, cur, start, bs, be = -1e9, 0.0, 0, 0, 0
+    for i, v in enumerate(d):
+        if cur <= 0:
+            cur, start = v, i
+        else:
+            cur += v
+        if cur > best:
+            best, bs, be = cur, start, i
+    seg = daily.iloc[bs:be + 1]
+    if len(seg) < min_days or seg['res'].sum() / seg['pred'].sum() < min_excess:
+        return None
+    onset, end = seg.index[0], seg.index[-1]
+    inside = b[(b['timestamp'] >= onset) & (b['timestamp'] < end + pd.Timedelta(days=1))]
+    resid = inside['meter_reading'] - inside['pred']
+    after = (inside['timestamp'].dt.hour < OCCUPIED_START_HOUR) | (inside['timestamp'].dt.hour >= OCCUPIED_END_HOUR) | \
+            (inside['timestamp'].dt.dayofweek >= 5)
+    excess_after = resid[after].sum() / resid.sum() if resid.sum() > 0 else float('nan')
+    base_after = inside.loc[after, 'pred'].sum() / inside['pred'].sum()
+    gap = excess_after - base_after
+    pattern = 'after_hours' if gap >= pattern_gap else ('occupied_hours' if gap <= -pattern_gap else 'all_day')
+    last_day = daily.index[-1]
+    return {'onset': onset.date(), 'end': end.date(), 'ongoing': bool(end >= last_day - pd.Timedelta(days=2)),
+            'excess_pct': round(100 * seg['res'].sum() / seg['pred'].sum(), 1),
+            'excess_after_hours_share': round(float(excess_after), 2), 'normal_after_hours_share': round(float(base_after), 2),
+            'pattern': pattern}

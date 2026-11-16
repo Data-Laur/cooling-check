@@ -9,7 +9,7 @@ import numpy as np
 import pandas as pd
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from pipeline import Config, KBTU_PER_KWH, UNIT_TO_KBTU, run_site, status_as_of  # noqa: E402
+from pipeline import Config, KBTU_PER_KWH, UNIT_TO_KBTU, describe_excess, run_site, status_as_of  # noqa: E402
 from app.weather import WeatherError, fetch_weather, zip_to_place  # noqa: E402
 
 UNIT_LABELS = {'kwh': 'kWh (electric-equivalent thermal energy)', 'kbtu': 'kBTU', 'ton_hours': 'ton-hours'}
@@ -23,7 +23,7 @@ RESULT_COLS = ['use', 'calib CV(RMSE) %', 'hours above band %', 'verdict', 'note
 
 def split_dates(start, end):
     """Test = roughly the last 5 whole months, calibration = the month before, fit = everything earlier."""
-    test_start = (pd.Timestamp(end).normalize() - pd.DateOffset(months=5)).replace(day=1)
+    test_start = (pd.Timestamp(end).normalize() + pd.Timedelta(days=1) - pd.DateOffset(months=5)).replace(day=1)
     cal_start = test_start - pd.DateOffset(months=1)
     return cal_start, test_start
 
@@ -107,6 +107,9 @@ def score(long, info, unit, clock, zips, shuts_off_winter, price_mode, own_price
             row = {'building': b, 'zip': z, 'place': place['name']}
             for c in RESULT_COLS:
                 row[c] = None if r is None else r.get(c)
+            row['hint'] = None
+            if r is not None and r.get('verdict') == 'Flagged':
+                row['hint'] = describe_excess(res.test[res.test['building_id'] == b].sort_values('timestamp'))
             row['as_of'] = asof.loc[b, 'status'] if b in asof.index else 'not scored'
             row['back_to_normal_since'] = asof.loc[b, 'back_to_normal_since'] if b in asof.index else None
             row['cooling vs temperature (corr)'] = None if b not in corr.index else round(float(corr[b]), 2)
