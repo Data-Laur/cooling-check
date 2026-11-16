@@ -82,7 +82,7 @@ label{font-weight:600} .field{margin:.9rem 0} .hint{color:var(--muted);font-size
 </style></head><body>
 <header><a class="brand" href="/" aria-label="Cooling Check home"><img src="/static/logo.svg" alt=""><span class="wordmark">Cooling Check</span></a>
 <span class="tagline">Is a building using more cooling than the weather explains?</span>
-<nav aria-label="Main"><a href="/" {e}>Priorities</a><a href="/upload" {c}>Check your data</a><a href="/method" {m}>Method</a></nav></header><main>"""
+<nav aria-label="Main"><a href="/" {e}>Priorities</a><a href="/#detail" id="nav-detail">Building detail</a><a href="/upload" {c}>Check your data</a><a href="/method" {m}>Method</a></nav></header><main>"""
 FOOT = """</main><footer><p>Built by <strong>Lauren Chagaris</strong> &middot; <a href="https://data-laur.github.io">Portfolio</a> &middot; <a href="https://github.com/Data-Laur/cooling-check">GitHub</a></p>
 <p>Portfolio project, not a production system. Data: Building Data Genome 2 (Miller et al., 2020).</p></footer></body></html>"""
 
@@ -235,14 +235,15 @@ def _clean(v):
 
 def _detail_json(out):
     d = {}
-    for k, v in out['details'].items():
-        v = dict(v)
+    order = [b for b in out['results']['building'] if b in out['details']]  # priority order: first = top of the ranking
+    for k in order:
+        v = dict(out['details'][k])
         h = v.pop('hint')
         v['name'] = dn(k)
         v['hint_html'] = _hint_ul(h) if v['verdict'] == 'Flagged' else ''
         v['onset'] = str(h['onset']) if h else None
         d[k] = _clean(v)
-    return json.dumps(d).replace('</', '<\\/')
+    return json.dumps({'data': d, 'order': order}).replace('</', '<\\/')
 
 
 def _hint_ul(h):
@@ -351,7 +352,7 @@ def results_body(out, heading='Results', buttons=True):
 <p class="hint">Test period {E(us_date(out['test_start']))} onward; the month before was used to calibrate the band; earlier data to fit the baseline.</p></div>
 """ + ('<p><a class="btn" href="/upload">Check another file</a> <a class="btn-outline" href="/method#trust">How far to trust it</a></p>' if buttons else '')
             + f'<div id="detail-view"></div><script src="https://cdn.plot.ly/plotly-2.35.2.min.js" charset="utf-8"></script>'
-              f'<script>window.DETAIL = {detail};</script><script src="/static/detail.js?v=3"></script>')
+              f'<script>window.DETAIL = {detail};</script><script src="/static/detail.js?v=4"></script>')
 
 
 def method():

@@ -34,7 +34,7 @@ for p in ('/trust', '/limits'):
 m = text(c.get('/method').text)
 assert 'How it works' in m and 'How far to trust it' in m and "What we can't see" in m and 'Data and credits' in m
 h = text(c.get('/').text)
-assert 'Priorities: 7 real buildings' in h and 'Panther lodging Cora' in h and 'Check your own data' in h
+assert 'Priorities: 7 real buildings' in h and 'id="nav-detail"' in c.get('/').text and 'id="nav-detail"' in c.get('/method').text and 'Panther lodging Cora' in h and 'Check your own data' in h
 d = c.get('/demo').text
 assert 'value="32816"' in d and 'name="clock" value="standard" checked' in d
 

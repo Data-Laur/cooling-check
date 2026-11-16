@@ -1,6 +1,7 @@
 /* Building detail view: week by week charts. Data comes from window.DETAIL (built by app/detail.py). */
 (function () {
-  var D = window.DETAIL || {};
+  var RAW = window.DETAIL || {}, D = RAW.data || {}, ORDER = RAW.order || [];
+  var navDetail = document.getElementById('nav-detail'), navCurrent = document.querySelector('header nav a[aria-current]');
   var C = { actual: '#D97706', cool: '#0E7490', expected: '#0E7490', band: 'rgba(8,145,178,0.16)', ink: '#1D2459', grid: '#E6E9F2' };
   var cur = { id: null, week: 0 };
   var MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -143,7 +144,7 @@
       '<div class="card"><h3>When in the week does the extra happen? (ton-hours above the band)</h3><div id="chart-heat" class="chart short"></div></div>' +
       '<div class="card"><h3>Month by month: actual vs expected</h3><div id="chart-month" class="chart short"></div></div>' +
       '<div class="card"><h3>Cooling vs outdoor weather</h3><p class="hint">Each dot is one hour. Cooling normally rises with outdoor wet-bulb temperature (heat plus humidity). Red dots are above the band. If they sit at mild temperatures too, the extra is not just a hot-weather effect.</p><div id="chart-scatter" class="chart"></div></div>';
-    document.body.classList.add('detail-open'); window.scrollTo(0, 0);
+    document.body.classList.add('detail-open'); window.scrollTo(0, 0); setNav(true);
     document.getElementById('back').onclick = close;
     document.getElementById('wk-prev').onclick = function () { cur.week--; drawWeek(b); };
     document.getElementById('wk-next').onclick = function () { cur.week++; drawWeek(b); };
@@ -151,7 +152,12 @@
     document.getElementById('wk').onchange = function () { cur.week = parseInt(this.value, 10); drawWeek(b); };
     drawWeek(b); drawHeat(b); drawMonth(b); drawScatter(b);
   }
-  function close() { document.body.classList.remove('detail-open'); history.replaceState(null, '', location.pathname + location.search); window.scrollTo(0, 0); }
+  function setNav(open) {
+    if (!navDetail) return;
+    if (navCurrent) { if (open) navCurrent.removeAttribute('aria-current'); else navCurrent.setAttribute('aria-current', 'page'); }
+    if (open) navDetail.setAttribute('aria-current', 'page'); else navDetail.removeAttribute('aria-current');
+  }
+  function close() { setNav(false); document.body.classList.remove('detail-open'); history.replaceState(null, '', location.pathname + location.search); window.scrollTo(0, 0); }
 
   document.addEventListener('click', function (e) {
     var a = e.target.closest ? e.target.closest('[data-b]') : null;
@@ -164,6 +170,10 @@
     if (e.key === 'ArrowRight' && cur.week < b.n_weeks - 1) { cur.week++; drawWeek(b); }
     if (e.key === 'Escape') close();
   });
+  if (navDetail) navDetail.addEventListener('click', function (e) {
+    if (ORDER.length) { e.preventDefault(); render(ORDER[0]); }
+  });
+  if (location.hash === '#detail' && ORDER.length) { render(ORDER[0]); return; }
   var m = /#b=([^&]+)(?:&w=(\d+))?/.exec(location.hash);
   if (m && D[decodeURIComponent(m[1])]) render(decodeURIComponent(m[1]), m[2] ? parseInt(m[2], 10) : null);
 })();
