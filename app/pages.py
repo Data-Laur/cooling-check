@@ -251,7 +251,7 @@ def _hint_ul(h):
         lines.append('<li>No clear start date or timing pattern stood out.</li>')
     else:
         o = pd.Timestamp(h['onset'])
-        lines.append(f"<li>The extra cooling began around <strong>{o.strftime('%B')} {o.day}, {o.year}</strong>. Ask what changed then: controls, setpoints, tenants, equipment.</li>")
+        lines.append(f"<li>The extra cooling began around <strong>{o.strftime('%B')} {o.day}, {o.year}</strong>. Check what changed around then, such as a schedule or controls change, a new temperature setpoint, a new tenant or use, or equipment work.</li>")
         pct = lambda x: f'{100 * x:.0f}%'
         if h['pattern'] == 'after_hours':
             lines.append(f"<li>Most of the extra ({pct(h['excess_after_hours_share'])}) is on nights and weekends, against {pct(h['normal_after_hours_share'])} of normal use. Check schedules, setpoint setbacks and after-hours operation.</li>")
